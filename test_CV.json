@@ -1,0 +1,14 @@
+{
+  "subnet": "192.168.4.255",
+  "xcode_version": "2out v Sep  5 2023 14:43:07",
+  "maxw": 713,
+  "loads": [
+    { "cccv": 1, "CC": 3.3, "dim": 100, "power": 40.0 },
+    { "cccv": 2, "CC": 2.5, "dim": 100, "power": 60.0 },
+    { "cccv": 3, "CC": 2.0, "dim": 100, "power": 70.0 },
+    { "cccv": 4, "CC": 1.5, "dim": 100, "power": 70.0 },
+    { "cccv": 255 }
+  ],
+  "sensor1": true,
+  "pdline": true
+}
