@@ -1,4 +1,6 @@
 # test.py
+
+#Probably newest version
 import controller
 import coap_client
 import load
@@ -9,6 +11,9 @@ import sys
 import coap_client_scan
 import subprocess
 
+import os
+import csv
+
 stop_on_failure = True
 update_golden = True
 debug_print = False
@@ -16,11 +21,10 @@ dfd_match_required = False
 
 test_id = '1'
 serial_number = ''
+mac_address = ''
 board_version = ''
 
-#port = '/dev/ttyUSB0'
-port = 'COM32'
-
+port = '/dev/ttyUSB0'
 baud = 115200
 timeout = 0 # use RX thread
 
@@ -147,12 +151,45 @@ def testCodeVersion(code_version):
 
 def testSerialNumber(sn):
     if not scan_sn:
-        coap_client.setSN(ip,str(sn));
+        coap_client.setSN(ip,str(sn))
     get_sn = coap_client.getSN(ip)
     if get_sn != str(sn):
         updateLog('testSerialNumber','fail get',get_sn)
         return False
     return True
+
+def write_to_csv(csv_file_path = "nodes_output.csv", sn_to_csv = None,mac_to_csv = None):
+    # Check if the CSV file exists; if not, create it
+    if not os.path.isfile(csv_file_path):
+        with open(csv_file_path, 'w', newline='') as csvfile:
+            fieldnames = ['Serial Number', 'MAC Address']
+            writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
+            writer.writeheader()
+    with open(csv_file_path, 'r') as csvfile:
+        lines = csvfile.readlines()
+        final_sn = sn_to_csv
+        final_mac = mac_to_csv
+        for line in lines:
+            if sn_to_csv in line: 
+                print("SERIAL NUMBER INVALID")
+                final_sn = ''
+            if mac_to_csv in line:
+                print("MAC ADDRESS INVALID")
+                final_mac = ''
+    if final_sn is not final_mac:
+        with open(csv_file_path, 'a', newline='') as csvfile:
+                    fieldnames = ['Serial Number', 'MAC Address']
+                    writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
+
+                    # Check if the file is empty; if yes, write the header
+                    file_empty = csvfile.tell() == 0
+                    writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
+                    if file_empty:
+                        writer.writeheader()
+                        
+                    writer.writerow({'Serial Number': sn_to_csv, 'MAC Address': mac_to_csv})
+        print("Data has been written to", csv_file_path)
+    else: print("NO DATA HAS BEEN WRITTEN.")
 
 def testBoardVersion(bv):
     # no set board version
@@ -260,14 +297,14 @@ def testSensor1(do_test):
     coap_client.putValue(ip,'/actuators/actuator1','motdsbl','33') # enable motion
     coap_client.setDim(ip,3,0) # clear dim
     controller.setAux(1,False,'') # set Aux1 low
-    time.sleep(1.0) # wait for event
+    time.sleep(5.0) # wait for event
     controller.setAux(1,True,'') # set Aux1 high, test rising edge of sensor1
-    time.sleep(1.0) # wait for event
+    time.sleep(5.0) # wait for event
     dim1 = coap_client.getDim(ip,1) # dim1 should be 100%
     dim2 = coap_client.getDim(ip,2) # dim2 should be 100%
     if dim1 != 100:
-        updateLog('testSensor1','high',1,'fail set dim',dim1)
-        return returnTestSensor1(False)
+        updateLog('testSensor1','high',1,'fail set dim DREW UPDATE',dim1)
+        return returnTestSensor1(False) # DREW note turn aux 1 off if fail
     if dim2 != 100:
         updateLog('testSensor1','high',2,'fail set dim',dim2)
         return returnTestSensor1(False)
@@ -288,29 +325,36 @@ def testPDLine(do_test):
     coap_client.putValue(ip,'/policy','offpol','0,0,-1,101,256') # this should be default, but change if not
     controller.setPush4BTNOff() # press off button, but ignore event
     coap_client.setDim(ip,3,0) # clear dim, in case off button did not work
-    time.sleep(0.3) # wait for silence
-    controller.setPush4BTNOn() # press button
-    time.sleep(0.3)
-    controller.setPush4BTNOn() # press again, no response if previous failed
-    time.sleep(0.3)
-    controller.setPush4BTNOn() # push 3 times in case first one failed
-    time.sleep(0.3)
-    dim1 = coap_client.getDim(ip,1) # dim1 should be 100%
-    dim2 = coap_client.getDim(ip,2) # dim2 should be 100%
+    updateLog('Starting PDLine Testing')
+    attempts = 0
+    while attempts != 10:
+        time.sleep(0.25)
+        controller.setPush4BTNOn()
+        dim1 = coap_client.getDim(ip,1) # dim1 should be 0%
+        dim2 = coap_client.getDim(ip,2)
+        attempts += 1
+        if dim1 == 100 and dim2 == 100:
+            updateLog('Attempts:',attempts,dim1,dim2)
+            break
+
+    updateLog('Attempts taken for dim 100:', attempts)
     if dim1 != 100:
         updateLog('testPDLine','On',1,'fail set dim',dim1)
         return False
     if dim2 != 100:
         updateLog('testPDLine','On',2,'fail set dim',dim2)
         return False
-    controller.setPush4BTNOff() # press button
-    time.sleep(0.3)
-    controller.setPush4BTNOff() # press again, no response if previous failed
-    time.sleep(0.3)
-    controller.setPush4BTNOff() # push 3 times in case first one failed
-    time.sleep(0.3)
-    dim1 = coap_client.getDim(ip,1) # dim1 should be 0%
-    dim2 = coap_client.getDim(ip,2) # dim2 should be 0%
+    attempts = 0
+    while attempts != 10:
+        time.sleep(0.25)
+        controller.setPush4BTNOff()
+        dim1 = coap_client.getDim(ip,1) # dim1 should be 0%
+        dim2 = coap_client.getDim(ip,2)
+        attempts += 1
+        if dim1 == 0 and dim2 == 0:
+            updateLog('Attempts:',attempts,dim1,dim2)
+            break
+
     if dim1 != 0:
         updateLog('testPDLine','Off',1,'fail set dim',dim1)
         return False
@@ -320,7 +364,15 @@ def testPDLine(do_test):
     return True
 
 def runTest():
+    global mac_address
     coap_client.putValue(ip,'/network','cmd','set_ws 0')
+    coap_client.putValue(ip,'/network','cmd','set_max_amp 3 2000') # Set max amp command (check this)
+    
+    #sn = coap_client.getSN(ip)
+    mac_address = coap_client.getMAC(ip)
+    updateLog('SN: ',serial_number)
+    updateLog('MAC: ',mac_address)
+
     if 'subnet' in test_config:
         if testSubnet(test_config['subnet']):
             updateState('runTest','pass - subnet','Pass','subnet')
@@ -335,7 +387,7 @@ def runTest():
             updateState('runTest','fail - code_version','Fail','code_version')
             if stop_on_failure:
                 return False
-    if serial_number != '':
+    if serial_number != '' or serial_number != '0':
         if testSerialNumber(serial_number):
             updateState('runTest','pass - serial_number','Pass','serial_number')
         else:
@@ -461,6 +513,44 @@ def checkCCCV(arg):
 def checkArg(arg):
     return checkSkipDB(arg) or checkVerbose(arg) or checkCCCV(arg)
 
+###################
+
+def write_to_csv(csv_file_path = "nodes_output.csv", sn_to_csv = None,mac_to_csv = None):
+    # Check if the CSV file exists; if not, create it
+    if not os.path.isfile(csv_file_path):
+        with open(csv_file_path, 'w', newline='') as csvfile:
+            fieldnames = ['Serial Number', 'MAC Address']
+            writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
+            writer.writeheader()
+    with open(csv_file_path, 'r') as csvfile:
+        lines = csvfile.readlines()
+        final_sn = sn_to_csv
+        final_mac = mac_to_csv
+        for line in lines:
+            if sn_to_csv in line: 
+                print("SERIAL NUMBER INVALID")
+                final_sn = ''
+            if mac_to_csv in line:
+                print("MAC ADDRESS INVALID")
+                final_mac = ''
+    if final_sn is not final_mac:
+        with open(csv_file_path, 'a', newline='') as csvfile:
+                    fieldnames = ['Serial Number', 'MAC Address']
+                    writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
+
+                    # Check if the file is empty; if yes, write the header
+                    file_empty = csvfile.tell() == 0
+                    writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
+                    if file_empty:
+                        writer.writeheader()
+                        
+                    writer.writerow({'Serial Number': sn_to_csv, 'MAC Address': mac_to_csv})
+
+        print("Data has been written to", csv_file_path)
+    else: print("NO DATA HAS BEEN WRITTEN.")
+
+###################
+
 def main(argv, arc):
     global test_id, serial_number, board_version
     #print(argv, arc)
@@ -491,6 +581,7 @@ def main(argv, arc):
     stop()
     if final_pass:
         print('final - pass')
+        write_to_csv("nodes_output.csv",serial_number,mac_address)
     else:
         print('final - fail')
     print('done')
