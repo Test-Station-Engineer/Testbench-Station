@@ -18,7 +18,9 @@ test_id = '1'
 serial_number = ''
 board_version = ''
 
-port = '/dev/ttyUSB0'
+#port = '/dev/ttyUSB0'
+port = 'COM32'
+
 baud = 115200
 timeout = 0 # use RX thread
 
@@ -160,6 +162,12 @@ def testBoardVersion(bv):
         return False
     return True
 
+def testCMD(cmds):
+    for cmd in cmds:
+        coap_client.putValue(ip,'/network','cmd',str(cmd))
+        time.sleep(1)
+    return True
+
 
 def testCCCV(cccv):
     global cccv_save
@@ -218,7 +226,7 @@ def testLoad(test_load):
             if 'CC' in test_load:
                 load.setCurrent(test_load['CC'])
             load.setOutputOn(True)
-            time.sleep(1.0)
+            time.sleep(3.0)
             power = load.measurePower()
             load.setOutputOn(False)
             if power < test_load['power']:
@@ -254,7 +262,7 @@ def testSensor1(do_test):
     controller.setAux(1,False,'') # set Aux1 low
     time.sleep(1.0) # wait for event
     controller.setAux(1,True,'') # set Aux1 high, test rising edge of sensor1
-    time.sleep(0.3) # wait for event
+    time.sleep(1.0) # wait for event
     dim1 = coap_client.getDim(ip,1) # dim1 should be 100%
     dim2 = coap_client.getDim(ip,2) # dim2 should be 100%
     if dim1 != 100:
@@ -312,6 +320,7 @@ def testPDLine(do_test):
     return True
 
 def runTest():
+    coap_client.putValue(ip,'/network','cmd','set_ws 0')
     if 'subnet' in test_config:
         if testSubnet(test_config['subnet']):
             updateState('runTest','pass - subnet','Pass','subnet')
@@ -383,7 +392,15 @@ def runTest():
             updateState('runTest','fail - pdline','Fail','pdline')
             if stop_on_failure:
                 return False
-    testMAXW(100) # set both channels 10W at end of test
+    if 'maxw_commission' in test_config:
+        testMAXW(test_config['maxw_commission']) # set both channels to commission requirement @ end of test - Drew
+    if 'cmd' in test_config:
+        if testCMD(test_config['cmd']):
+            updateState('runTest','pass - cmd','Pass','cmd')
+        else:
+            updateState('runTest','fail - cmd','Fail','cmd')
+            if stop_on_failure:
+                return False
     return True
 
 def start():

@@ -115,6 +115,9 @@ def getValue(ip_address,resource,key):
 def getSN(ip_address):
     return getValue(ip_address,'/network','serialnum')
 
+def getMAC(ip_address):
+    return getValue(ip_address,'/network','emac')
+
 def setSN(ip_address,sn):
     putValue(ip_address,'/network','serialnum',sn)
 
