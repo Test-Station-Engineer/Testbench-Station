@@ -4,9 +4,12 @@ from aiocoap import *
 from cbor2 import loads, dumps
 import socket
 
+usbc_COM_test: bool = False
+
 # resource = '/actuators/actuator1''
 # data = {'maxw':'713'}
 async def asyncPut(ip_address,resource,data):
+    global usbc_COM_test # Note to delete
     protocol = await Context.create_client_context()
     uri = 'coap://'+ip_address+'/inx'+resource
     payload = dumps({'e':data})
@@ -17,6 +20,10 @@ async def asyncPut(ip_address,resource,data):
     except Exception as e:
         print('Failed to fetch resource:')
         print(e)
+        # Added for USBC Communication Test Note to delete
+        if usbc_COM_test == True:
+            usbc_COM_test = False
+            return ''
     #else:
     #    print('Result: %s\n%r'%(response.code, response.payload))
 
@@ -54,6 +61,7 @@ def putValueMcast(ip_address,resource,key,value):
     sock.close() 
 
 async def asyncGet(ip_address,resource):
+    global usbc_COM_test # Note to delete
     protocol = await Context.create_client_context()
     uri = 'coap://'+ip_address+'/inx'+resource
     # both CON and NON work
@@ -65,6 +73,10 @@ async def asyncGet(ip_address,resource):
     except Exception as e:
         print('Failed to fetch resource:')
         print(e)
+        # # Added for USBC Communication Test Note to delete
+        if usbc_COM_test == True:
+            usbc_COM_test = False
+            return ''
     else:
         #print('Result: %s\n%r'%(response.code, response.payload))
         #print('decoded payload',loads(response.payload, str_errors='replace'))
@@ -111,6 +123,26 @@ def getValue(ip_address,resource,key):
         return get(ip_address,resource)[key]
     except:
         return ''
+    
+# Checks to see if connection was lost
+async def check_ip(ip_address, resource='/network',key = 'cmd',value='set_cccv 3 3', timeout=3):
+    """Check if the device with the given IP address is reachable within the specified timeout."""
+    try:
+        # Set a timeout for the GET request
+        data = await asyncio.wait_for(putValue(ip_address,resource,key,value), timeout)
+        if data:
+            print("Data is",data)
+            return True  # The device responded
+    except asyncio.TimeoutError:
+        print(f"Timeout: No response from {ip_address} after {timeout} seconds.")
+    except Exception as e:
+        print(f"Error while trying to reach {ip_address}: {e}")
+    
+    return False  # No response, IP is probably not reachable
+
+def is_ip_reachable(ip_address, resource='/network',key = 'cmd',value='set_cccv 3 3', timeout=3):
+    """Blocking call to check if the device IP is reachable."""
+    return asyncio.run(check_ip(ip_address, resource, key, value, timeout))
 
 def getSN(ip_address):
     return getValue(ip_address,'/network','serialnum')
@@ -154,7 +186,7 @@ def getBoardVersion(ip_address):
 def getCCCV(ip_address,channel):
     return getValue(ip_address,'/actuators/actuator'+str(channel),'cccv')
 
-def setCCCV(ip_address,channel,stage):
+def setCCCV(ip_address,channel,stage): # Unused
     #putValue(ip_address,'/actuators/actuator'+str(channel),'cccv',str(stage))
     putValue(ip_address,'/network','cmd','set_cccv '+str(channel)+' '+str(stage))
 
@@ -166,7 +198,7 @@ def getMaxWatt(ip_address,channel):
         return 0
 
 def setMaxWatt(ip_address,channel,maxwatt):
-    putValue(ip_address,'/network','cmd','set_max_watt '+str(channel)+' '+str(int(maxwatt*10)))
+    putValue(ip_address,'/network','cmd','set_max_watt '+str(channel)+' '+str(int(maxwatt)))
 
 def getPWMFrequency(ip_address):
     value = getValue(ip_address,'/actuators/actuator1','pwmfreq')
@@ -184,4 +216,24 @@ def getDim(ip_address,channel):
 def setDim(ip_address,channel,dim):
     putValue(ip_address,'/network','cmd','set_dim '+str(channel)+' '+str(dim))
 
-    
+def getSentype(ip_address,channel):
+    if channel == 0: return putValue(ip_address,'/network','cmd','get_input_type sentype')
+    else: return getValue(ip_address,'/sensors/input'+str(channel),'sentype')
+
+def setSentype(ip_address,channel,sentype):
+    if channel == 0: putValue(ip_address,'/network','cmd','set_input_type sentype'+str(sentype))
+    else: putValue(ip_address,'/sensors/input'+str(channel),'sentype',str(sentype)) # change sensor 1 events supernode version
+
+def getEventLH(ip_address,channel):
+    return getValue(ip_address,'/sensors/input'+str(channel),'eventlh')
+
+def setEventLH(ip_address,channel,eventlh):
+    if channel == 0: putValue(ip_address,'/network','cmd','set_input_type eventlh'+str(eventlh))
+    else: putValue(ip_address,'/sensors/input'+str(channel),'eventlh',str(eventlh))
+
+def getEventHL(ip_address,channel):
+    return getValue(ip_address,'/sensors/input'+str(channel),'eventhl')
+
+def setEventHL(ip_address,channel,eventhl):
+    if channel == 0: putValue(ip_address,'/network','cmd','set_input_type eventhl'+str(eventhl))
+    else: putValue(ip_address,'/sensors/input'+str(channel),'eventhl',str(eventhl))
