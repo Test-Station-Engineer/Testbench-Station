@@ -14,13 +14,18 @@ import subprocess
 import os
 import csv
 
+#import battery_backup as batt
+from pynput import keyboard
+
 stop_on_failure = True
-update_golden = True
+update_golden = False
+require_golden_match = False
 debug_print = False
 dfd_match_required = False
 
 test_id = '1'
 serial_number = ''
+custom_sn = ''
 mac_address = ''
 board_version = ''
 
@@ -35,6 +40,15 @@ cccv_save = None
 
 CC_json = False
 CV_json = False
+
+# Battery Backup Settings
+battery_backup_test = False
+await_key: str = 'w'
+
+#Commissioning
+commissioning = False
+
+
 
 def updateState(method,msg,state,description):
     print(method,msg)
@@ -63,6 +77,8 @@ def loadTestJSON():
         file_name = 'test_CV.json'
     if CC_json:
         file_name = 'test_CC.json'
+    if battery_backup_test:
+        file_name = 'test_battery_backup.json'
     try:
         with open(file_name) as f:
             test_config = json.load(f)
@@ -137,12 +153,13 @@ def testCodeVersion(code_version):
             while elapsed < 100:
                 time.sleep(1.0)
                 elapsed += 1
-                print('\r waiting for reboot: ',str(elapsed),endl='')
+                #print('\r waiting for reboot: ',str(elapsed),endl='') # Returns an error - Drew
             golden = coap_client.getGoldenVersion(ip)
-            if  golden != code_version:
-                updateLog('testCodeVersion','fail golden',golden)
-                return False
-        else:
+            if require_golden_match == True:
+                if  golden != code_version:
+                    updateLog('testCodeVersion','fail golden',golden)
+                    return False
+        elif require_golden_match == True:
             return False
     if dfd_match_required and dfd != code_version:
         updateLog('testCodeVersion','fail dfd',dfd)
@@ -157,39 +174,6 @@ def testSerialNumber(sn):
         updateLog('testSerialNumber','fail get',get_sn)
         return False
     return True
-
-def write_to_csv(csv_file_path = "nodes_output.csv", sn_to_csv = None,mac_to_csv = None):
-    # Check if the CSV file exists; if not, create it
-    if not os.path.isfile(csv_file_path):
-        with open(csv_file_path, 'w', newline='') as csvfile:
-            fieldnames = ['Serial Number', 'MAC Address']
-            writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
-            writer.writeheader()
-    with open(csv_file_path, 'r') as csvfile:
-        lines = csvfile.readlines()
-        final_sn = sn_to_csv
-        final_mac = mac_to_csv
-        for line in lines:
-            if sn_to_csv in line: 
-                print("SERIAL NUMBER INVALID")
-                final_sn = ''
-            if mac_to_csv in line:
-                print("MAC ADDRESS INVALID")
-                final_mac = ''
-    if final_sn is not final_mac:
-        with open(csv_file_path, 'a', newline='') as csvfile:
-                    fieldnames = ['Serial Number', 'MAC Address']
-                    writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
-
-                    # Check if the file is empty; if yes, write the header
-                    file_empty = csvfile.tell() == 0
-                    writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
-                    if file_empty:
-                        writer.writeheader()
-                        
-                    writer.writerow({'Serial Number': sn_to_csv, 'MAC Address': mac_to_csv})
-        print("Data has been written to", csv_file_path)
-    else: print("NO DATA HAS BEEN WRITTEN.")
 
 def testBoardVersion(bv):
     # no set board version
@@ -210,30 +194,47 @@ def testCCCV(cccv):
     global cccv_save
     cccv_save = cccv
     coap_client.putValue(ip,'/actuators/actuator1','cccv',str(cccv))
-    coap_client.putValue(ip,'/actuators/actuator2','cccv',str(cccv))
+    if not battery_backup_test or not 'battery_backup_loads' in test_config or not cccv == 10: # Accounts for when you are doing a battery backup test
+        coap_client.putValue(ip,'/actuators/actuator2','cccv',str(cccv))
     cccv1 = coap_client.getValue(ip,'/actuators/actuator1','cccv')
     cccv2 = coap_client.getValue(ip,'/actuators/actuator2','cccv')
     if cccv1 != str(cccv):
         updateLog('testCCCV','fail actuator1',cccv1)
         return False
-    if cccv2 != str(cccv):
-        updateLog('testCCCV','fail actuator2',cccv2)
-        return False
+    
+    if not battery_backup_test or not 'battery_backup_loads' in test_config: # Accounts for when you are doing a battery backup test
+        if cccv2 != str(cccv):
+            updateLog('testCCCV','fail actuator2',cccv2)
+            return False
     return True
 
 def testMAXW(maxw):
     global maxw_save
+    global commissioning
     maxw_save = maxw
+    commissioned = False
     coap_client.putValue(ip,'/actuators/actuator1','maxw',str(maxw))
     coap_client.putValue(ip,'/actuators/actuator2','maxw',str(maxw))
+
+    
+    if "maxw_commission" in test_config and maxw == test_config['maxw_commission'] and commissioning:
+        time.sleep(8.0) # This is done to save the max watt information to EEPROM - Drew
+        commissioning = False # Will need to improve this later - Drew
+        commissioned = True
+
     maxw1 = coap_client.getValue(ip,'/actuators/actuator1','maxw')
     maxw2 = coap_client.getValue(ip,'/actuators/actuator2','maxw')
+    
     if maxw1 != str(maxw):
         updateLog('testMAXW','fail actuator1',maxw2)
         return False
     if maxw2 != str(maxw):
         updateLog('testMAXW','fail actuator2',maxw2)
         return False
+    
+    if commissioned:  # Need to refine this later - Drew
+        updateLog('Max watt commissioned to',maxw1)
+
     return True
 
 def testLoad(test_load):
@@ -245,7 +246,7 @@ def testLoad(test_load):
         if test_load['maxw'] != maxw_save:
             if testCCCV(test_load['maxw']):
                 updateLog('testMAXW','pass',test_load['maxw'])
-    if ('CR' in test_load or 'CC' in test_load) and 'dim' in test_load and 'power' in test_load:
+    if ('CR' in test_load or 'CC' in test_load or 'CV' in test_load) and 'dim' in test_load and 'power' in test_load:
         coap_client.setDim(ip,3,test_load['dim'])
         dim1 = coap_client.getDim(ip,1)
         dim2 = coap_client.getDim(ip,2)
@@ -255,15 +256,29 @@ def testLoad(test_load):
         if dim2 != test_load['dim']:
             updateLog('testLoad',2,'fail set dim',dim2)
             return False
-        relays = ['output1','output2']
+
+        if battery_backup_test: relays = ['output1'] # Accounts for when you are doing a battery backup test 
+        else: relays = ['output1','output2']
+
+        #print(relays)
+
         for relay in relays:
             controller.setRelays(relay)
             if 'CR' in test_load:
                 load.setResistance(test_load['CR'])
             if 'CC' in test_load:
                 load.setCurrent(test_load['CC'])
+            if 'CV' in test_load:
+                load.setVoltage(test_load['CV'])
+            #coap_client.setDim(ip,3,'90') # Improve. Check to see if this is needed in all cases. - Drew
+            #time.sleep(2.75)
+            #coap_client.setDim(ip,3,'100')
+            #time.sleep(3.0)
             load.setOutputOn(True)
-            time.sleep(3.0)
+            time.sleep(5.0)
+
+            # print(coap_client.getDim(ip,1))
+
             power = load.measurePower()
             load.setOutputOn(False)
             if power < test_load['power']:
@@ -363,16 +378,142 @@ def testPDLine(do_test):
         return False
     return True
 
+#def switch_test_prompt(keyboard_key: str):
+#    print("Press and hold switch test button. Then press ", keyboard_key, " on keyboard when ready.")
+#    keyboard.wait(keyboard_key)
+#    print("Keep button held")
+
+def send_test_prompt(key, prompt: str,response:str):
+
+    json_key_mapping = { # This is used in send_test_prompt
+        "enter": keyboard.Key.enter,
+        "space": keyboard.Key.space,
+        # Add other keys as needed
+    }
+
+    if len(key) > 1:
+            # Assuming keyboard.Key has attributes that correspond to the keyboard_key
+        #print(key)
+        keyboard_key = json_key_mapping.get(key)
+        if keyboard_key is None:
+            print(f"Key '{key}' does not exist in keyboard.Key.")
+            print("Keyboard key is ",keyboard_key)
+
+    else: keyboard_key = key
+
+    print(prompt)
+
+    def on_press(key_input):
+        try:
+            if key_input == keyboard_key:  # Check if the pressed key matches
+                print("Key pressed:", keyboard_key)
+                return False  # Stop listener
+        except AttributeError:
+            pass  # Handle special keys (like Shift, Ctrl, etc.)
+
+    # Set up the listener
+    with keyboard.Listener(on_press=on_press) as listener:
+        listener.join()  # Wait until the key is pressed
+
+    print(response)
+
+def testBatteryLoad(upper_load,lower_load,key,wait_time):
+
+    if not testCCCV(10):
+        return False
+    coap_client.setDim(ip,3,90)
+    #time.sleep(1)
+    coap_client.setDim(ip,3,100)
+
+    time.sleep(wait_time)
+
+    if not testLoad(upper_load):
+        return False
+
+    if not testCCCV(10): 
+        return False
+    coap_client.setDim(ip,3,90)
+    #time.sleep(1)
+    coap_client.setDim(ip,3,100)
+    
+    send_test_prompt(key,f"Press and hold switch test button. Then press {key} on keyboard when ready.", "Keep button held.")
+
+    time.sleep(wait_time)
+    if not testLoad(lower_load): 
+        return False
+    print("Release button")
+    time.sleep(5)
+    if not testLoad(upper_load):
+        return False
+    
+
+# TESTING FEATURE
+    coap_client.setDim(ip,3,0)
+    if not testCCCV(255): #Replaced cv 0
+        return False
+    #if not testCCCV(0): 
+        #return False
+    #coap_client.setDim(ip,3,0) # Commented out
+
+    print("Dim:",coap_client.getDim(ip,1),coap_client.getDim(ip,2),"; CCCV:", coap_client.getCCCV(ip,1),coap_client.getCCCV(ip,2))
+    time.sleep(wait_time)
+
+
+    #send_test_prompt(key, f"Unplug Channel 1, then press {key}","Testing Power Loss Backup")
+    #time.sleep(wait_time)
+
+    if not testLoad(lower_load): 
+        return False
+    
+    #send_test_prompt(key, f"Plug in Channel 1, then press {key}","Testing Normal High Load")
+    #time.sleep(wait_time)
+
+    if not testCCCV(10): 
+        return False
+    if not testMAXW(test_config['maxw']): 
+        return False
+    coap_client.setDim(ip,3,100)
+    if not testLoad(upper_load): 
+        return False
+
+    print("Remember to unplug pink battery backup connectors when finished testing.")
+    return True
+
+def testBatteryBackup(batt_test_load):
+    if "Low Load" in batt_test_load: low_load = batt_test_load["Low Load"]
+    else: 
+        print("No Low Load in json file")
+        return False
+
+    if "High Load" in batt_test_load: high_load = batt_test_load["High Load"]
+    else:
+        print("No High Load in json file")
+        return False
+
+    if "await_key" in test_config: await_key = test_config["await_key"]
+    else: await_key = 'p'
+
+    if "await_time" in test_config: batt_wait_time = test_config["await_time"]
+    else: batt_wait_time = 2
+
+    if not testBatteryLoad(high_load,low_load,await_key,batt_wait_time):
+        return False
+
+    return True
+
 def runTest():
     global mac_address
-    coap_client.putValue(ip,'/network','cmd','set_ws 0')
-    coap_client.putValue(ip,'/network','cmd','set_max_amp 3 2000') # Set max amp command (check this)
-    
-    #sn = coap_client.getSN(ip)
-    mac_address = coap_client.getMAC(ip)
-    updateLog('SN: ',serial_number)
-    updateLog('MAC: ',mac_address)
+    global commissioning
+    global battery_backup_test
 
+    coap_client.putValue(ip,'/network','cmd','set_ws 0')
+    coap_client.putValue(ip,'/network','cmd','set_max_amp 3 2500')
+    
+    if not battery_backup_test:
+        sn = coap_client.getSN(ip)
+        mac_address = coap_client.getMAC(ip)
+        updateLog('SN: ',sn, 'MAC: ',mac_address)
+    
     if 'subnet' in test_config:
         if testSubnet(test_config['subnet']):
             updateState('runTest','pass - subnet','Pass','subnet')
@@ -429,7 +570,7 @@ def runTest():
             updateState('runTest','fail - loads','Fail','loads')
             if stop_on_failure:
                 return False
-    if 'sensor1' in test_config:
+    if 'sensor1' in test_config: # Unsure why this has a parameter
         if testSensor1(test_config['sensor1']):
             updateState('runTest','pass - sensor1','Pass','sensor1')
         else:
@@ -437,15 +578,29 @@ def runTest():
             if stop_on_failure:
                 return False
     if 'pdline' in test_config:
-        if testPDLine(test_config['pdline']):
+        if testPDLine(test_config['pdline']): # Unsure why this has a parameter
             print('pass','pdline')
             updateState('runTest','pass - pdline','Pass','pdline')
         else:
             updateState('runTest','fail - pdline','Fail','pdline')
             if stop_on_failure:
                 return False
+
+    if 'battery_backup_loads' in test_config:
+        battery_backup_test = True
+        mac_address = ''
+
+        if (testBatteryBackup(test_config["battery_backup_loads"])):
+            print('pass','battbackup')
+            updateState('runTest','pass - battbackup','Pass','battbackup')
+        else:
+            updateState('runTest','fail - battbackup','Fail','battbackup')
+            if stop_on_failure:
+                return False
+
     if 'maxw_commission' in test_config:
-        testMAXW(test_config['maxw_commission']) # set both channels to commission requirement @ end of test - Drew
+        commissioning = True
+        testMAXW(test_config['maxw_commission']) # sets both channels to commission requirement @ end of test - Drew
     if 'cmd' in test_config:
         if testCMD(test_config['cmd']):
             updateState('runTest','pass - cmd','Pass','cmd')
@@ -510,12 +665,22 @@ def checkCCCV(arg):
         CV_json = True
         print('CV_json')
 
-def checkArg(arg):
-    return checkSkipDB(arg) or checkVerbose(arg) or checkCCCV(arg)
+def checkCustomDevice(arg):
+    global battery_backup_test
+    global custom_sn
+    if arg[:2] == 'BB':
+        battery_backup_test = True
+        custom_sn = arg
+        print("Recorded Serial Number will be: ", custom_sn)
 
+
+
+def checkArg(arg):
+    return checkSkipDB(arg) or checkVerbose(arg) or checkCCCV(arg) or checkCustomDevice(arg)
+    
 ###################
 
-def write_to_csv(csv_file_path = "nodes_output.csv", sn_to_csv = None,mac_to_csv = None):
+def write_to_csv(csv_file_path = "experimentation.csv", sn_to_csv = None,mac_to_csv = None):
     # Check if the CSV file exists; if not, create it
     if not os.path.isfile(csv_file_path):
         with open(csv_file_path, 'w', newline='') as csvfile:
@@ -524,16 +689,15 @@ def write_to_csv(csv_file_path = "nodes_output.csv", sn_to_csv = None,mac_to_csv
             writer.writeheader()
     with open(csv_file_path, 'r') as csvfile:
         lines = csvfile.readlines()
-        final_sn = sn_to_csv
-        final_mac = mac_to_csv
         for line in lines:
             if sn_to_csv in line: 
-                print("SERIAL NUMBER INVALID")
-                final_sn = ''
+                print("SERIAL NUMBER ALREADY IN FILE")
+                sn_to_csv = ''
             if mac_to_csv in line:
-                print("MAC ADDRESS INVALID")
-                final_mac = ''
-    if final_sn is not final_mac:
+                if not mac_to_csv == '' or None:
+                    print("MAC ADDRESS ALREADY IN FILE")
+                mac_to_csv = ''
+    if sn_to_csv is not mac_to_csv:
         with open(csv_file_path, 'a', newline='') as csvfile:
                     fieldnames = ['Serial Number', 'MAC Address']
                     writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
@@ -581,7 +745,11 @@ def main(argv, arc):
     stop()
     if final_pass:
         print('final - pass')
-        write_to_csv("nodes_output.csv",serial_number,mac_address)
+
+        if "append_to_file" in test_config:
+            if battery_backup_test:
+                serial_number = custom_sn
+            write_to_csv(test_config["append_to_file"],serial_number,mac_address)
     else:
         print('final - fail')
     print('done')

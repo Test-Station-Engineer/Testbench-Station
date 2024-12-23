@@ -1,0 +1,26 @@
+{
+  "subnet": "192.168.3.255",
+  "code_version": "2out v Sep 26 2024 13:21:07",
+  "cccv": 10,
+  "maxw": 620,
+  "battery_backup_load": 
+  {
+    "Low Load": { 
+      "CV": 40, 
+      "dim": 0, 
+      "power":7 
+      }, 
+
+      "High Load": { 
+        "CV": 40, 
+        "dim": 100, 
+        "power":40 
+    }
+
+},
+  "await_time": 7,
+  "await_key": "enter",
+  "maxw_commission": 100,
+  "append_to_file": "test.csv",
+  "cmd": ["set_dim 3 100"]
+}
