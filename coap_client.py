@@ -4,12 +4,11 @@ from aiocoap import *
 from cbor2 import loads, dumps
 import socket
 
-usbc_COM_test: bool = False
+import time
 
 # resource = '/actuators/actuator1''
 # data = {'maxw':'713'}
 async def asyncPut(ip_address,resource,data):
-    global usbc_COM_test # Note to delete
     protocol = await Context.create_client_context()
     uri = 'coap://'+ip_address+'/inx'+resource
     payload = dumps({'e':data})
@@ -20,10 +19,6 @@ async def asyncPut(ip_address,resource,data):
     except Exception as e:
         print('Failed to fetch resource:')
         print(e)
-        # Added for USBC Communication Test Note to delete
-        if usbc_COM_test == True:
-            usbc_COM_test = False
-            return ''
     #else:
     #    print('Result: %s\n%r'%(response.code, response.payload))
 
@@ -61,7 +56,6 @@ def putValueMcast(ip_address,resource,key,value):
     sock.close() 
 
 async def asyncGet(ip_address,resource):
-    global usbc_COM_test # Note to delete
     protocol = await Context.create_client_context()
     uri = 'coap://'+ip_address+'/inx'+resource
     # both CON and NON work
@@ -73,10 +67,6 @@ async def asyncGet(ip_address,resource):
     except Exception as e:
         print('Failed to fetch resource:')
         print(e)
-        # # Added for USBC Communication Test Note to delete
-        if usbc_COM_test == True:
-            usbc_COM_test = False
-            return ''
     else:
         #print('Result: %s\n%r'%(response.code, response.payload))
         #print('decoded payload',loads(response.payload, str_errors='replace'))
@@ -101,8 +91,13 @@ def getUcast(ip_address,resource,timeout):
         try:
             data = loads(payload, str_errors='replace')['e']
             return data
-        except:
-            return None
+        except Exception:
+            try:
+                payload = response[12:]
+                data = loads(payload, str_errors='replace')['e']
+                return data
+            except Exception:
+                return None
     return None
 
 def getBcast(ip_address,resource):
@@ -237,3 +232,19 @@ def getEventHL(ip_address,channel):
 def setEventHL(ip_address,channel,eventhl):
     if channel == 0: putValue(ip_address,'/network','cmd','set_input_type eventhl'+str(eventhl))
     else: putValue(ip_address,'/sensors/input'+str(channel),'eventhl',str(eventhl))
+
+def secure_setting(ip_address: str,resource: str,key: str,value,verbose: bool = False):
+    for i in range(1,10):    
+        #print(power)
+        putValue(ip_address,resource,key,value)
+        get_setting = getValue(ip_address,resource,key)
+        if value == get_setting:
+            if verbose or i > 1: print(f"{resource,key} assigned as {get_setting}. It took {i} tries")
+            return True
+        time.sleep(0.25)
+    if value is not get_setting:
+        print("Failed to set",key,"of resource",resource,"to",value,"after",i,"retries.")
+        return False
+
+def set_lldp(ip_address,state: bool): 
+    secure_setting(ip_address,'/network','lldp_enable',str(state).lower())

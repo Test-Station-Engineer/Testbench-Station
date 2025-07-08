@@ -4,7 +4,12 @@ import socket
 import time
 import sys
 
+import keyboard
+
 nodes = []
+scan_for_leading_digits: bool = False
+
+is_mini_node = False
 
 def getIP():
     s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
@@ -48,6 +53,11 @@ def scan(range_start=2,range_end=255):
     start = time.time()
     for i in range(range_start,range_end):
     #for i in range(20,30):
+
+        if keyboard.is_pressed('esc'):
+            print("\nScan terminated by user.")
+            return nodes
+        
         progress = '\r'+str(int(100*(i+1)/(range_end-range_start)))+'%'
         print(progress,end='')
         ip_address_split = subnet.split('.')
@@ -59,14 +69,22 @@ def scan(range_start=2,range_end=255):
             if data:
                 #print(' SN',data['serialnum'],test_ip_address)
                 node = {'ip':test_ip_address,'network':data}
-                node['dfd']=coap_client.getUcast(test_ip_address,'/dfd',0.1)
-                node['dfu']=coap_client.getUcast(test_ip_address,'/dfu',0.1)
-                context = coap_client.getUcast(test_ip_address,'/actuators/actuator1/context',0.1)
-                if "keyw" in context:
-                    node['cluster']=context["keyw"][0]
-                else:
-                    node['cluster']=''
+                if not is_mini_node:
+                    node['dfd']=coap_client.getUcast(test_ip_address,'/dfd',0.1)
+                    node['dfu']=coap_client.getUcast(test_ip_address,'/dfu',0.1)
+                    context = coap_client.getUcast(test_ip_address,'/actuators/actuator1/context',0.1)
+                    try:
+                        if "keyw" in context:
+                            node['cluster']=context["keyw"][0]
+                        else:
+                            node['cluster']=''
+                    except:
+                        print("\nCONTEXT ERROR - UPDATING NODE DB")
+                        coap_client.putValue(test_ip_address,'/network','cmd','update_db')
                 nodes.append(node)
+                if scan_for_leading_digits:
+                    if node['network']['serialnum'][:len(serial_number)] == serial_number:
+                        break
                 if serial_number != '' and node['network']['serialnum'] == serial_number:
                     break
             else:
