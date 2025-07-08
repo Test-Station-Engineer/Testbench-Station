@@ -1,6 +1,7 @@
 # load.py
 # el_SDL1020X-E
 import pyvisa as visa
+import time
 
 found_device = False
 is_open = False
@@ -8,7 +9,7 @@ device = 0
 res_els = [
 'USB0::62700::5665::SDL13GCC7R0064::0::INSTR',
 'USB0::62700::5665::SDL13GCC7R0069::0::INSTR',
-'ASRL198::INSTR'
+'ASRL/dev/ttyUSB2::INSTR'
 ]
 
 def open():
@@ -30,7 +31,6 @@ def open():
         print('Could not find Electronic Load')
         return False
     device = rm.open_resource(res_el)
-    device.timeout = 10000
     is_open = True
     return True
 
@@ -48,62 +48,55 @@ def query(msg):
 
 def write(msg):
     if is_open:
-        #print(msg) # debug
-        device.write(msg)
-        return 'OK'
+        try:
+            #print(msg) # debug
+            device.write(msg)
+            return 'OK'
+        except:
+            time.sleep(5.0)
+            rm = visa.ResourceManager('@py')
+            print(rm.list_resources())
     else:
         return 'Device not open'
 
 def measureFloat(msg):
     if is_open:
-        return float(query(msg))
+        try:
+            return float(query(msg))
+        except:
+            time.sleep(5.0)
+            rm = visa.ResourceManager('@py')
+            print(rm.list_resources())
     else:
         return 0
 
 def measureVoltage():
-    return measureFloat('MEAS:VOLT?')
+    return measureFloat('MEAS:VOLT:DC?')
 
 def measurePower():
-    return measureFloat('MEAS:POW?')
+    return measureFloat('MEAS:POW:DC?')
 
 def measureCurrent():
-    return measureFloat('MEAS:CURR?')
+    return measureFloat('MEAS:CURR:DC?')
 
-def setOutputOn(state: bool):
-    if state:
-        return write('INPUT ON')
+def setOutputOn(on):
+    if on:
+        return write(':SOUR:INP:STAT ON')
     else:
-        return write('INPUT OFF')
-    
-def setMode(mode: str):
-    if mode == 'CRM':
-        return write('MODE CRM')
-    if mode == 'CV':
-        return write('MODE CV')
-    if mode == 'CCH':
-        return write('MODE CCH')
-    
+        return write(':SOUR:INP:STAT OFF')
 
 def setVoltage(value):
-#     write(':SOUR:FUNC VOLT')
-#     return write(':SOUR:VOLT:LEV:IMM '+"{:.3f}".format(value))
-    write('MODE CV')
-    return write('VOLT '+"{:.3f}".format(value))
+    write(':SOUR:FUNC VOLT')
+    return write(':SOUR:VOLT:LEV:IMM '+"{:.3f}".format(value))
 
 def setPower(value):
-#     write(':SOUR:FUNC POW')
-#     return write(':SOUR:POW:LEV:IMM '+"{:.3f}".format(value))
-    write('MODE CPC')
-    return write('POW '+"{:.3f}".format(value))
+    write(':SOUR:FUNC POW')
+    return write(':SOUR:POW:LEV:IMM '+"{:.3f}".format(value))
 
 def setCurrent(value):
-    # write(':SOUR:FUNC CURR')
-    # return write(':SOUR:CURR:LEV:IMM '+"{:.3f}".format(value))
-    write('MODE CCH')
-    return write('CURR '+"{:.3f}".format(value))
+    write(':SOUR:FUNC CURR')
+    return write(':SOUR:CURR:LEV:IMM '+"{:.3f}".format(value))
 
 def setResistance(value):
-#     write(':SOUR:FUNC RES')
-#     return write(':SOUR:RES:LEV:IMM '+"{:.3f}".format(value))
-    write('MODE CRM')
-    return write('RES '+"{:.3f}".format(value))
+    write(':SOUR:FUNC RES')
+    return write(':SOUR:RES:LEV:IMM '+"{:.3f}".format(value))
