@@ -1,9 +1,0 @@
-{
-  "subnet": "192.168.4.255",
-  "code_version": "2out v Sep  5 2023 14:43:07",
-  "cccv": 0,
-  "maxw": 713,
-  "load": { "CR": 32, "dim": 90, "power": 60.0 },
-  "sensor1": true,
-  "pdline": true
-}

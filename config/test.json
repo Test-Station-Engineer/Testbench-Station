@@ -1,0 +1,20 @@
+{
+  "subnet": "192.168.3.255",
+  "coxde_version": "2out v May  1 2025 14:17:03",
+
+  "trigger_1_test": true,
+  "chance_to_test_trigger_1": 100.0,
+  "number_of_trigger_1_attempts": 1.0,
+  "seconds_to_wait_for_restart": 8.0,
+
+  "update_db": true,
+  "cccv": 0,
+  "maxw": 713,
+  "hold_load_time": 2.5,
+  "load": { "CV": 40, "dim": 100, "power":60 },
+  "sensor1": true,
+  "pdline": true,
+  "maxw_commission": 100,
+  "append_to_file": true,
+  "cmd": ["set_dim 3 100"]
+}

@@ -1,0 +1,25 @@
+{
+  "subnet": "192.168.1.255",
+  "cxode_version": "2out v Dec  9 2024 15:33:50",
+  "hold_load_time": 4,
+  "http_server": "http://192.168.3.14:8081/firmware",
+  "http_port": "8081",
+  "remote_drivers": false,
+  "mini_cp": 900,
+  "mini_cv": 40000,
+  "mixni_cc": 3000,
+  "dim": 100,
+
+  "loxads": [
+    { "mini_cv": 12000,"CR": 3.2, "power": 18.0 },
+    { "mini_cv": 24000,"CR": 8, "power": 60.0 },
+    { "mini_cv": 40000, "CR": 22, "power": 65.0 },
+    { "mini_cv": 48000, "CR": 23, "power": 67.0 }
+  ],
+  "defacto_load_off_state": {"CC": 0.050},
+
+  "rgbw": [4278190080,16711680,65280,255,4294967295],
+  "sensor1": true,
+  "pdline": true,
+  "append_to_file": true
+}

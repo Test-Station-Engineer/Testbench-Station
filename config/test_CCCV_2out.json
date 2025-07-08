@@ -1,0 +1,20 @@
+{
+  "subnet": "192.168.3.255",
+  "cxode_version": "2out v Dec  9 2024 15:33:50",
+  "update_db": false,
+  "maxw": 713,
+  "hold_time": 2,
+  "loads": [
+    { "cccv": 0, "CV": 40, "dim": 100, "power":60 },
+    { "cccv": 1, "CC": 3.3, "dim": 100, "power": 36.0 },
+    { "cccv": 2, "CC": 2.5, "dim": 100, "power": 56.0 },
+    { "cccv": 3, "CC": 2.0, "dim": 100, "power": 66.0 },
+    { "cccv": 4, "CC": 1.5, "dim": 100, "power": 66.0 },
+    { "cccv": 255, "dim": 100 }
+  ],
+  "sensor1": true,
+  "pdline": true,
+  "maxw_commission": 100,
+  "append_to_file": true,
+  "cmd": ["set_dim 3 100"]
+}

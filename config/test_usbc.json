@@ -1,0 +1,29 @@
+{
+  "subnet": "192.168.3.255",
+  "xcode_version": "2out v Dec  9 2024 15:33:50",
+  "update_db": true,
+
+  "trigger_1_test": true,
+  "chance_to_test_trigger_1": 100.0,
+  "number_of_trigger_1_attempts": 1.0,
+  "seconds_to_wait_for_restart": 8.0,
+
+  "maxw": 713,
+  "cccv": 3,
+  "hold_load_time": 1,
+  "loads": [
+    { "CC": 0.25, "dim": 100, "power": 7.0 },
+    { "CC": 1.0, "dim": 100, "power": 28.0 },
+    { "CC": 2.1, "dim": 100, "power": 0.0 },
+    { "CC": 2.5, "dim": 100, "power": 0.0 },
+    { "CC": 3, "dim": 100, "power": 0.0 },
+    { "CC": 3.5, "dim": 100, "power": 0.0 },
+    { "CC": 10, "dim": 100, "power": 0.0 },
+    { "CC": 0.25, "dim": 100, "power": 7.0 }
+  ],
+  "sensor1": true,
+  "pdline": true,
+  "maxw_commission": 713,
+  "append_to_file": true,
+  "cmd": ["set_dim 3 100"]
+}
