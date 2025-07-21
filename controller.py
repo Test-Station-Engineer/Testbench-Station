@@ -49,7 +49,7 @@ def initValues():
 ser = serial.Serial()
 lines = []
 rx_line = ''
-print_rx = False
+print_rx = False # Set true to debug
 rx_thread_running = False
 rx_thread_started = False
 def rxThreadFunction(name):
@@ -301,7 +301,7 @@ def getIP():
             ip_str = line[line.find(":")+2:]
             if isValidIPStr(ip_str):
                 ip = ip_str
-    return ip    
+    return ip
 
 # INXIP: 10.10.0.50
 def getINXIP():
@@ -410,6 +410,7 @@ def getDim(channel):
             try:
                 dim = int(line)
             except:
+                print("Did not find dim in controller console")
                 dim = 0
             return dim
     return 0
@@ -433,6 +434,26 @@ def setRelays(channel):
     msg = 'set_relays '+str(channel)+'\r\n'
     ser.write(msg.encode('utf-8'))
     readLines(1,2000)
+
+def setMux(channel):
+    flushLines()
+    msg = 'set_mux '+str(channel)+'\r\n'
+    ser.write(msg.encode('utf-8'))
+    readLines(1,200)
+
+def getMux():
+    flushLines()
+    msg = 'get_mux_channel\r\n'
+    ser.write(msg.encode('utf-8'))
+    readLines(3,200) # Need to check to see if this is right - Drew
+    for i in range(0,3):
+        line = readLine(False)
+        #print(line)
+        if line.find('Mux channel') > -1 and len(line) > 21:
+            #print("Found")
+            mux_channel = line[21:].strip()
+            mux_channel=int(mux_channel)
+            return mux_channel
         
 def setPush4BTNOn():
     flushLines()
@@ -503,4 +524,3 @@ def resetConsole():
     writeConsole(b' ') # reset console
     readLines(3,200)
     flushLines()
-

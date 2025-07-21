@@ -1,0 +1,8 @@
+aiocoap
+cbor2==5.5.1
+tftpy
+mysql-connector-python
+pyvisa-py
+pyusb
+zeroconf
+psutil
