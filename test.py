@@ -13,42 +13,63 @@ import subprocess
 
 import os
 import csv
+import random
 
-#import battery_backup as batt
-from pynput import keyboard
+from devices import functions_misc as misc
+from devices import functions_els as els
+from devices import functions_supernode as snode
+from devices import functions_mini as mnode
 
-stop_on_failure = True
-update_golden = False
-require_golden_match = False
-debug_print = False
-dfd_match_required = False
+stop_on_failure: bool = True
+update_golden: bool = False
+require_golden_match: bool = False
+debug_print: bool = False
+dfd_match_required: bool = False
+test_id: str = '1'
+serial_number: str = ''
+custom_sn: str = ''
+mac_address: str = ''
+board_version: str = ''
 
-test_id = '1'
-serial_number = ''
-custom_sn = ''
-mac_address = ''
-board_version = ''
+#port: str = '/dev/ttyUSB0'
+port: str = 'COM202'
+baud: int = 115200
+timeout: int = 0 # use RX thread
 
-port = '/dev/ttyUSB0'
-baud = 115200
-timeout = 0 # use RX thread
-
-scan_sn = False
+scan_sn: bool = False
 
 maxw_save = None
 cccv_save = None
 
-CC_json = False
-CV_json = False
+CC_json: bool = False
+CV_json: bool = False
 
+# CUSTOM DEVICE SETTINGS
+# Mini Node Settings
+mini_node_test: bool = False
+# ELS Node Settings
+els_node_test: bool = False
+# USBC Node Settings
+usbc_node_test: bool = False
+usbc_current_channel = ''
+# Supernode Settings
+supernode_test: bool = False
 # Battery Backup Settings
-battery_backup_test = False
+battery_backup_test: bool = False
 await_key: str = 'w'
 
-#Commissioning
-commissioning = False
+# Commissioning 
+commissioning: bool = False
 
+# Allows testbench to look for a device with leading digits provided in an arguement and 
+# sets the serial number of that device to the serial number arguement
+set_sn: bool = False
+sn_leading_digits_to_set_sn: str
 
+device: str = ''
+node_channels: int = 2 # How many channels for a node. 2 by default
+
+csv_filename: str = ''
 
 def updateState(method,msg,state,description):
     print(method,msg)
@@ -70,27 +91,70 @@ def updateLog(*args):
         database.updateTestLog(test_id,serial_number,board_version,desc)
 
 test_config = None
+
 def loadTestJSON():
+    global device
     global test_config
-    file_name = 'test.json'
+    
+    # Define the folder path where the JSON files are located
+    folder_path = "config"
+
+    # Ensure the 'config' folder exists (optional step)
+    if not os.path.exists(folder_path):
+        print(f"Error: The '{folder_path}' folder does not exist.")
+        return False
+
+    # Default file name
+    file_name = os.path.join(folder_path, 'test.json')
+    
     if CV_json:
-        file_name = 'test_CV.json'
-    if CC_json:
-        file_name = 'test_CC.json'
-    if battery_backup_test:
-        file_name = 'test_battery_backup.json'
+        file_name = os.path.join(folder_path, 'test_CV.json')
+        device = 'CV-RS485'
+    elif CC_json:
+        device = 'CC-0-10'
+        file_name = os.path.join(folder_path, 'test_CC.json')
+    elif mini_node_test:
+        file_name = os.path.join(folder_path, 'test_mini_node.json')
+    elif battery_backup_test:
+        # device = 'Battery Backup' # Redundant, done in CheckCustomDevice(arg)
+        file_name = os.path.join(folder_path, 'test_battery_backup.json')
+    elif supernode_test:
+        if device == 'Supernode':
+            file_name = os.path.join(folder_path, 'test_supernode.json')
+        elif device == 'Supernode CV':
+            file_name = os.path.join(folder_path, 'test_supernode_CV.json')
+        elif device == 'Supernode CC':
+            file_name = os.path.join(folder_path, 'test_supernode_CC.json')
+    elif usbc_node_test:
+        # device = 'USBC Node' # Redundant, done in CheckCustomDevice(arg)
+        file_name = os.path.join(folder_path, 'test_usbc.json')
+    elif els_node_test: 
+        device = 'ELS Node'
+    else:
+        device = 'CC-0-10'
+
     try:
+        # Open and load the JSON file from the 'config' folder
         with open(file_name) as f:
+            #test_config = json.load(f)
             test_config = json.load(f)
             updateLog(test_config)
             return True
-    except:
+    except FileNotFoundError:
+        print(f"Error: {file_name} not found.")
+        return False
+    except json.JSONDecodeError:
+        print(f"Error: Failed to decode JSON from {file_name}.")
+        return False
+    except Exception as e:
+        print(f"An unexpected error occurred: {e}")
         return False
 
 ip = ''
 def getIP():
     global ip
     updateLog('getIP','start')
+    if mini_node_test: coap_client_scan.is_mini_node = True
     if scan_sn:
         if 'subnet' in test_config:
             coap_client_scan.subnet = test_config['subnet']
@@ -99,8 +163,13 @@ def getIP():
             host_ip_split = host_ip.split('.')
             host_ip_split[3] = '255'
             coap_client_scan.subnet = '.'.join(host_ip_split)
-        print('scan subnet',coap_client_scan.subnet,'for sn',serial_number)
-        coap_client_scan.serial_number = serial_number
+        if set_sn:
+            print('scan subnet',coap_client_scan.subnet,'for device with leading sn digit(s):',sn_leading_digits_to_set_sn)
+            coap_client_scan.serial_number = sn_leading_digits_to_set_sn
+            coap_client_scan.scan_for_leading_digits = True
+        else: 
+            print('scan subnet',coap_client_scan.subnet,'for sn',serial_number)
+            coap_client_scan.serial_number = serial_number
         coap_client_scan.scan()
         for node in coap_client_scan.nodes:
             print(node['ip'],node['network']['serialnum'])
@@ -109,7 +178,14 @@ def getIP():
                 print('scan found sn',serial_number,'at',ip)
                 updateLog('getIP',ip)
                 return True
-    else:
+            # Sets serial number of given device with leading digits to serial number input arguement.
+            elif set_sn and node['network']['serialnum'][:len(sn_leading_digits_to_set_sn)] == sn_leading_digits_to_set_sn:
+                ip = node['ip']
+                print('scan found sn leading digits',sn_leading_digits_to_set_sn,'at',ip)
+                updateLog('getIP',ip)
+                return True
+
+    else: # Doesn't work currently since COM is not enabled
         for i in range(0,20):
             controller.ip = ''
             ip = controller.getIP()
@@ -161,18 +237,21 @@ def testCodeVersion(code_version):
                     return False
         elif require_golden_match == True:
             return False
-    if dfd_match_required and dfd != code_version:
+    if dfd != code_version:
         updateLog('testCodeVersion','fail dfd',dfd)
-        return False
+        if dfd_match_required:
+            return False
     return True
 
 def testSerialNumber(sn):
-    if not scan_sn:
+    if mini_node_test: mnode.serial_number_test(serial_number)
+    if set_sn or not scan_sn:
         coap_client.setSN(ip,str(sn))
     get_sn = coap_client.getSN(ip)
     if get_sn != str(sn):
         updateLog('testSerialNumber','fail get',get_sn)
         return False
+    if set_sn: print("Serial number set to",get_sn)
     return True
 
 def testBoardVersion(bv):
@@ -181,6 +260,24 @@ def testBoardVersion(bv):
     if get_bv != str(bv):
         updateLog('testBoardVersion','fail get',get_bv)
         return False
+    return True
+
+def testTrigger(number_of_times_to_restart,seconds_to_wait_for_restart):
+    times_restarted = 0
+    while(times_restarted < number_of_times_to_restart):
+        coap_client.putValue(ip,'/network','cmd','trigger 1')
+        count = 0
+        while(count<seconds_to_wait_for_restart):
+            try:
+                print("Attempt",times_restarted+1,"IP Address rediscovered:",coap_client.getValue(ip,'/network','madr'))
+                break
+            except:
+                print("Awaiting ip...")
+            time.sleep(1.0)
+            print(count)
+            count += 1
+        if coap_client.getValue(ip,'/network','madr') != ip: return False
+        times_restarted += 1
     return True
 
 def testCMD(cmds):
@@ -193,9 +290,13 @@ def testCMD(cmds):
 def testCCCV(cccv):
     global cccv_save
     cccv_save = cccv
-    coap_client.putValue(ip,'/actuators/actuator1','cccv',str(cccv))
-    if not battery_backup_test or not 'battery_backup_loads' in test_config or not cccv == 10: # Accounts for when you are doing a battery backup test
-        coap_client.putValue(ip,'/actuators/actuator2','cccv',str(cccv))
+
+    if supernode_test: coap_client.setCCCV(ip,0,cccv)
+    else: coap_client.setCCCV(ip,3,cccv)
+
+    if supernode_test:
+        time.sleep(8.0)
+            
     cccv1 = coap_client.getValue(ip,'/actuators/actuator1','cccv')
     cccv2 = coap_client.getValue(ip,'/actuators/actuator2','cccv')
     if cccv1 != str(cccv):
@@ -213,12 +314,12 @@ def testMAXW(maxw):
     global commissioning
     maxw_save = maxw
     commissioned = False
-    coap_client.putValue(ip,'/actuators/actuator1','maxw',str(maxw))
-    coap_client.putValue(ip,'/actuators/actuator2','maxw',str(maxw))
-
+    coap_client.setMaxWatt(ip,0,maxw)
+    if supernode_test:
+        time.sleep(3.0)
     
     if "maxw_commission" in test_config and maxw == test_config['maxw_commission'] and commissioning:
-        time.sleep(8.0) # This is done to save the max watt information to EEPROM - Drew
+        time.sleep(3.0) # This is done to save the max watt information to EEPROM - Drew
         commissioning = False # Will need to improve this later - Drew
         commissioned = True
 
@@ -237,109 +338,261 @@ def testMAXW(maxw):
 
     return True
 
+def setMux(channel: int, verbose: bool = True, delay:float = 0.25):
+    # If you want to improve the odds of it finding the mux, give it more time to read it in controller.py
+
+    controller.setMux(channel-1)
+
+    if verbose: print("Setting Mux to output on channel", channel)
+    if delay: time.sleep(delay)
+    #print("Mux channel",relay,"is",controller.getMux())
+    current_mux = controller.getMux
+    count: int = -1
+    while current_mux != channel-1:
+        current_mux = controller.getMux()
+        if count == 50 or -1:
+            print("Attempting to retrive mux")
+            count = 0
+        #print("MUX WAS NOT SET PROPERLY FOR CHANNEL",channel,"- CURRENT MUX IS",current_mux)
+        count+=1
+        time.sleep(delay)
+
 def testLoad(test_load):
+    ran_once : bool = False
+
+    def power_check(turn_off_load_after: bool = True):
+        """Measures power once, then if it is below expected, it will wait and measure again.
+        \nIf it's still inadequate, it will pause and await user input.
+        \nIf still inadequate, it will fail and turn load machine off, if input var is true."""
+        
+        power = load.measurePower()
+
+        # If power measured is less than required, wait, then measure again. Then await the user to measure a third time
+        if power < test_load['power']: 
+            print("Failed initial power test at",power,"watts. Awaiting new measurement.")
+            time.sleep(3.0)
+            power = load.measurePower()
+            if power < test_load['power']:
+                misc.send_test_prompt(misc.key,f"TEST STATION PAUSED. PRESS {misc.key} TO CONTINUE.","CONTINUING TEST.")
+                power = load.measurePower()
+
+            # Sets load output off
+            load.setOutputOn(False)
+
+            # if power is less than required, fail it. Else, pass it
+            if power < test_load['power']:
+                misc.updateLog('testLoad',relay,'fail power',power)
+                return False
+            else: 
+                misc.updateLog('testLoad',relay,'pass power',power)
+                return True
+        misc.updateLog('testLoad',relay,'pass power',power)
+        if turn_off_load_after: load.setOutputOn(False)
+        return True
+
     if 'cccv' in test_load:
         if test_load['cccv'] != cccv_save:
             if testCCCV(test_load['cccv']):
                 updateLog('testCCCV','pass',test_load['cccv'])
     if 'maxw' in test_load:
         if test_load['maxw'] != maxw_save:
-            if testCCCV(test_load['maxw']):
+            if testMAXW(test_load['maxw']):
                 updateLog('testMAXW','pass',test_load['maxw'])
-    if ('CR' in test_load or 'CC' in test_load or 'CV' in test_load) and 'dim' in test_load and 'power' in test_load:
-        coap_client.setDim(ip,3,test_load['dim'])
-        dim1 = coap_client.getDim(ip,1)
-        dim2 = coap_client.getDim(ip,2)
-        if dim1 != test_load['dim']:
-            updateLog('testLoad',1,'fail set dim',dim1)
-            return False
-        if dim2 != test_load['dim']:
-            updateLog('testLoad',2,'fail set dim',dim2)
-            return False
 
+    if mini_node_test:
+        if not ran_once: print("Starting Mini Node Load test")
+        if not mnode.load_test(test_load): return False
+        else: return True
+
+    if els_node_test:
+        print("Starting ELS load test")
+        if not els.load_test(ip, test_load, test_config): return False
+        else: return True
+
+    if supernode_test:
+        print("Starting Supernode load test")
+        if not snode.load_test(test_load): return False
+        else: return True
+
+    dim: int = 100
+    if 'dim' in test_load: dim = test_load['dim']
+                
+    coap_client.setDim(ip,3,10)
+    time.sleep(1)
+    coap_client.setDim(ip,3,dim)
+
+    time.sleep(0.5)
+                
+    if ('CR' in test_load or 'CC' in test_load or 'CV' in test_load) and 'power' in test_load:
+
+        # SET RELAYS
         if battery_backup_test: relays = ['output1'] # Accounts for when you are doing a battery backup test 
-        else: relays = ['output1','output2']
+
+        elif usbc_node_test: relays = [usbc_current_channel] # usbc_current_channel is set in the test_loads function
+
+        else:
+            #coap_client.setDim(ip,3,dim)
+            dim1 = coap_client.getDim(ip,1)
+            dim2 = coap_client.getDim(ip,2)
+
+            if dim1 != dim:
+                updateLog('testLoad',1,'failed to set dim on channel 1 to',dim,"Current dim:",dim1)
+                return False
+            if dim2 != dim:
+                updateLog('testLoad',2,'failed to set dim on channel 2 to',dim,"Current dim:",dim2)
+                return False
+
+            relays = ['output1','output2']
 
         #print(relays)
 
         for relay in relays:
+
             controller.setRelays(relay)
-            if 'CR' in test_load:
-                load.setResistance(test_load['CR'])
-            if 'CC' in test_load:
+
+            if 'CR' in test_load: load.setResistance(test_load['CR'])
+            if 'CV' in test_load: load.setVoltage(test_load['CV'])
+            if 'CC' in test_load: 
+                # Unncomment this if the load machine is crappy. (Sig SDL 1000x series for instance)
+                # if test_load['CC'] > 3.5:
+                #     load.setCurrent(test_load['CC']/2)
+                #     time.sleep(0.5)
                 load.setCurrent(test_load['CC'])
-            if 'CV' in test_load:
-                load.setVoltage(test_load['CV'])
-            #coap_client.setDim(ip,3,'90') # Improve. Check to see if this is needed in all cases. - Drew
-            #time.sleep(2.75)
-            #coap_client.setDim(ip,3,'100')
-            #time.sleep(3.0)
-            load.setOutputOn(True)
-            time.sleep(5.0)
 
-            # print(coap_client.getDim(ip,1))
+            # SET OUTPUT ON AND MEASURE POWER
+            # time.sleep(1.0)
+            if 'time_before_load_on' in test_config: time.sleep(test_config['time_before_load_on'])
+            # Sets load output on.
+            if not usbc_node_test or not ran_once: load.setOutputOn(True)
 
-            power = load.measurePower()
-            load.setOutputOn(False)
-            if power < test_load['power']:
-                updateLog('testLoad',relay,'fail power',power)
-                return False
-            updateLog('testLoad',relay,'pass power',power)
+            if 'hold_load_time' in test_config: time.sleep(test_config['hold_load_time'])
+            time.sleep(1.0)
+
+            power_check(True)
+
+            ran_once = True
+
         return True
+    
+    # SUPERNODE RELATED SUPERNODE RELATED SUPERNODE RELATED SUPERNODE RELATED SUPERNODE RELATED SUPERNODE RELATED 
+    if supernode_test: load.setOutputOn(False)
+
     return True
 
 def testLoads(test_loads):
+    global usbc_current_channel
+
     test_pass = True
-    for test_load in test_loads:
-        if not testLoad(test_load):
-            test_pass = False
+
+    if mini_node_test: 
+        print("Testing Mini Node Loads")
+        if not mnode.loads_test(test_loads): return False
+        return True
+    
+    elif usbc_node_test: 
+        load.setOutputOn(True)
+        usbc_channels = ['output1','output2']
+        for index,channel in enumerate(usbc_channels): # usbc_channels defined as a global variable. Should be 2 channels until we make USBC supernodes
+            usbc_current_channel = usbc_channels[index]
+            print(usbc_current_channel)
+            controller.setRelays(channel)
+            for index,test_load in enumerate(test_loads):
+                if not testLoad(test_load): test_pass = False
+    
+    else:
+        for index,test_load in enumerate(test_loads):
+            if not testLoad(test_load): test_pass = False
+
+    load.setOutputOn(False)
+
     if test_pass:
         updateLog('testLoads','pass')
-        return True 
+        return True
     updateLog('testLoads','fail')
+
     return False
 
 # clean up function before return
 def returnTestSensor1(ret):
-    coap_client.putValue(ip,'/sensors/sensor1','eventrisefall','mot,vac') # reset sensor 1 events
-    coap_client.putValue(ip,'/actuators/actuator1','motdsbl','3') # disable motion
+    if not mini_node_test: coap_client.putValue(ip,'/sensors/sensor1','eventrisefall','mot,vac') # reset sensor 1 events
+    if not supernode_test: coap_client.putValue(ip,'/actuators/actuator1','motdsbl','3') # disable motion
+    else: coap_client.putValue(ip,'/actuators/actuator1','motdsbl','0') # disable motion (supernode)
     return ret
 
 def testSensor1(do_test):
+    
+    if mini_node_test:
+        if mnode.sensor_test(): return True
+        else: return False
+
     coap_client.putValue(ip,'/sensors/sensor1','eventrisefall','on,off') # change sensor 1 events
     coap_client.putValue(ip,'/policy','onpol','0,100,-1,101,256') # this should be default, but change if not
     coap_client.putValue(ip,'/policy','offpol','0,0,-1,101,256') # this should be default, but change if not
+    # coap_client.putValue(ip,'/policy','updown','10,10,90,5') # this should be default, but change if not
     coap_client.putValue(ip,'/actuators/actuator1','motdsbl','33') # enable motion
-    coap_client.setDim(ip,3,0) # clear dim
+
+    if usbc_node_test: misc.send_test_prompt(misc.key,f'Connect control port of {device} to test station and press {misc.key}','')
+
+    
     controller.setAux(1,False,'') # set Aux1 low
+
+    # print(coap_client.getDim(ip,1))
+    # print(coap_client.getDim(ip,2))
+    coap_client.setDim(ip,3,0) # clear dim
+    # print(coap_client.getDim(ip,1))
+    # print(coap_client.getDim(ip,2))
+
     time.sleep(5.0) # wait for event
     controller.setAux(1,True,'') # set Aux1 high, test rising edge of sensor1
     time.sleep(5.0) # wait for event
+    
     dim1 = coap_client.getDim(ip,1) # dim1 should be 100%
     dim2 = coap_client.getDim(ip,2) # dim2 should be 100%
-    if dim1 != 100:
-        updateLog('testSensor1','high',1,'fail set dim DREW UPDATE',dim1)
+    if dim1 <= 0:
+        updateLog('testSensor1','high',1,'fail set dim',dim1)
         return returnTestSensor1(False) # DREW note turn aux 1 off if fail
-    if dim2 != 100:
+    elif dim2 <= 0:
         updateLog('testSensor1','high',2,'fail set dim',dim2)
         return returnTestSensor1(False)
+    else: updateLog('testSensor1','high','pass set dim', dim2)
     controller.setAux(1,False,'') # set Aux1 low, test falling edge of sensor1
-    time.sleep(0.3) # wait for  event
+    time.sleep(1.0) # wait for  event
     dim1 = coap_client.getDim(ip,1) # dim1 should be 0%
     dim2 = coap_client.getDim(ip,2) # dim2 should be 0%
+    # count = 0
+    # while dim1 != 0 and dim2 != 0:
+    #     time.sleep(1)
+    #     dim1 = coap_client.getDim(ip,1)
+    #     dim2 = coap_client.getDim(ip,2)
+    #     count += 1
+    #     if count == 10: break
     if dim1 != 0:
         updateLog('testSensor1','low',1,'fail set dim',dim1)
         return returnTestSensor1(False)
-    if dim2 != 0:
+    elif dim2 != 0:
         updateLog('testSensor1','low',2,'fail set dim',dim2)
         return returnTestSensor1(False)
+    else: updateLog('testSensor1','low','pass set dim', dim2)
     return returnTestSensor1(True)
 
 def testPDLine(do_test):
-    coap_client.putValue(ip,'/policy','onpol','0,100,-1,101,256') # this should be default, but change if not
-    coap_client.putValue(ip,'/policy','offpol','0,0,-1,101,256') # this should be default, but change if not
+    if mini_node_test:
+        if not mnode.wallswitch_test(mnode.drivers): return False
+        else: return True
+    if not supernode_test and not mini_node_test:
+        coap_client.putValue(ip,'/policy','onpol','0,100,-1,101,256') # this should be default, but change if not
+        coap_client.putValue(ip,'/policy','offpol','0,0,-1,101,256') # this should be default, but change if not
+    elif mini_node_test:
+        if not coap_client.secure_setting(ip,'/drivers/0/wallswitch','enable','true'): misc.send_test_prompt(misc.key,f'Type "set_wallswitch_enable true" in driver console and press {misc.key} when it has been set.','')
+        if mnode.remote_driver_exists: 
+            if not coap_client.secure_setting(ip,'/drivers/1/wallswitch','enable','true'): misc.send_test_prompt(misc.key,f'Type "set_wallswitch_enable true" in driver console and press {misc.key} when it has been set.','')
+    else: 
+        misc.send_test_prompt(misc.key,f'Connect control port of {device} to test station and press {misc.key}','')
+    
     controller.setPush4BTNOff() # press off button, but ignore event
-    coap_client.setDim(ip,3,0) # clear dim, in case off button did not work
+    coap_client.setDim(ip,0,0) # clear dim, in case off button did not work
+
+    time.sleep(1.0) # CHECK TO SEE IF THIS IS NECESSARY
     updateLog('Starting PDLine Testing')
     attempts = 0
     while attempts != 10:
@@ -349,7 +602,7 @@ def testPDLine(do_test):
         dim2 = coap_client.getDim(ip,2)
         attempts += 1
         if dim1 == 100 and dim2 == 100:
-            updateLog('Attempts:',attempts,dim1,dim2)
+            #updateLog('Attempts:',attempts,dim1,dim2)
             break
 
     updateLog('Attempts taken for dim 100:', attempts)
@@ -357,8 +610,10 @@ def testPDLine(do_test):
         updateLog('testPDLine','On',1,'fail set dim',dim1)
         return False
     if dim2 != 100:
-        updateLog('testPDLine','On',2,'fail set dim',dim2)
-        return False
+        if mini_node_test and not mnode.remote_driver_exists: pass
+        else:
+            updateLog('testPDLine','On',2,'fail set dim',dim2)
+            return False
     attempts = 0
     while attempts != 10:
         time.sleep(0.25)
@@ -367,9 +622,9 @@ def testPDLine(do_test):
         dim2 = coap_client.getDim(ip,2)
         attempts += 1
         if dim1 == 0 and dim2 == 0:
-            updateLog('Attempts:',attempts,dim1,dim2)
+            #updateLog('Attempts:',attempts,dim1,dim2)
             break
-
+    updateLog('Attempts taken for dim 0:', attempts)
     if dim1 != 0:
         updateLog('testPDLine','Off',1,'fail set dim',dim1)
         return False
@@ -377,45 +632,6 @@ def testPDLine(do_test):
         updateLog('testPDLine','Off',2,'fail set dim',dim2)
         return False
     return True
-
-#def switch_test_prompt(keyboard_key: str):
-#    print("Press and hold switch test button. Then press ", keyboard_key, " on keyboard when ready.")
-#    keyboard.wait(keyboard_key)
-#    print("Keep button held")
-
-def send_test_prompt(key, prompt: str,response:str):
-
-    json_key_mapping = { # This is used in send_test_prompt
-        "enter": keyboard.Key.enter,
-        "space": keyboard.Key.space,
-        # Add other keys as needed
-    }
-
-    if len(key) > 1:
-            # Assuming keyboard.Key has attributes that correspond to the keyboard_key
-        #print(key)
-        keyboard_key = json_key_mapping.get(key)
-        if keyboard_key is None:
-            print(f"Key '{key}' does not exist in keyboard.Key.")
-            print("Keyboard key is ",keyboard_key)
-
-    else: keyboard_key = key
-
-    print(prompt)
-
-    def on_press(key_input):
-        try:
-            if key_input == keyboard_key:  # Check if the pressed key matches
-                print("Key pressed:", keyboard_key)
-                return False  # Stop listener
-        except AttributeError:
-            pass  # Handle special keys (like Shift, Ctrl, etc.)
-
-    # Set up the listener
-    with keyboard.Listener(on_press=on_press) as listener:
-        listener.join()  # Wait until the key is pressed
-
-    print(response)
 
 def testBatteryLoad(upper_load,lower_load,key,wait_time):
 
@@ -436,13 +652,13 @@ def testBatteryLoad(upper_load,lower_load,key,wait_time):
     #time.sleep(1)
     coap_client.setDim(ip,3,100)
     
-    send_test_prompt(key,f"Press and hold switch test button. Then press {key} on keyboard when ready.", "Keep button held.")
+    misc.send_test_prompt(key,f"Press and hold switch test button. Then press {key} on keyboard when ready.", "Keep button held.")
 
     time.sleep(wait_time)
     if not testLoad(lower_load): 
         return False
     print("Release button")
-    time.sleep(5)
+    time.sleep(5.0)
     if not testLoad(upper_load):
         return False
     
@@ -456,16 +672,16 @@ def testBatteryLoad(upper_load,lower_load,key,wait_time):
     #coap_client.setDim(ip,3,0) # Commented out
 
     print("Dim:",coap_client.getDim(ip,1),coap_client.getDim(ip,2),"; CCCV:", coap_client.getCCCV(ip,1),coap_client.getCCCV(ip,2))
-    time.sleep(wait_time)
+    time.sleep(wait_time*2)
 
 
-    #send_test_prompt(key, f"Unplug Channel 1, then press {key}","Testing Power Loss Backup")
+    #misc.send_test_prompt(key, f"Unplug Channel 1, then press {key}","Testing Power Loss Backup")
     #time.sleep(wait_time)
 
     if not testLoad(lower_load): 
         return False
     
-    #send_test_prompt(key, f"Plug in Channel 1, then press {key}","Testing Normal High Load")
+    #misc.send_test_prompt(key, f"Plug in Channel 1, then press {key}","Testing Normal High Load")
     #time.sleep(wait_time)
 
     if not testCCCV(10): 
@@ -491,7 +707,7 @@ def testBatteryBackup(batt_test_load):
         return False
 
     if "await_key" in test_config: await_key = test_config["await_key"]
-    else: await_key = 'p'
+    else: await_key = misc.key
 
     if "await_time" in test_config: batt_wait_time = test_config["await_time"]
     else: batt_wait_time = 2
@@ -502,17 +718,99 @@ def testBatteryBackup(batt_test_load):
     return True
 
 def runTest():
+    global device
     global mac_address
     global commissioning
     global battery_backup_test
-
-    coap_client.putValue(ip,'/network','cmd','set_ws 0')
-    coap_client.putValue(ip,'/network','cmd','set_max_amp 3 2500')
-    
+    #global node_channels node_channnels unimplemented
+    if 'trigger_1_test' in test_config and test_config['trigger_1_test']:
+        if 'chance_to_test_trigger_1' in test_config:
+            chance = test_config['chance_to_test_trigger_1']
+            if random.random() < chance/100: 
+                print("Starting Trigger 1 Test")
+                if 'number_of_trigger_1_attempts' in test_config: trigger_attempts = test_config['number_of_trigger_1_attempts']
+                if 'seconds_to_wait_for_restart' in test_config: wait_for_seconds = test_config['seconds_to_wait_for_restart']
+                if testTrigger(trigger_attempts,wait_for_seconds):
+                    updateState('runTest','pass - trigger1','Pass','trigger1')
+                else: 
+                    updateState('runTest','fail - trigger1','Fail','trigger1')
+            else: pass
+    if 'update_db' in test_config and test_config['update_db']: coap_client.putValue(ip,'/network','cmd','update_db')
+    time.sleep(8.0)
     if not battery_backup_test:
         sn = coap_client.getSN(ip)
-        mac_address = coap_client.getMAC(ip)
+        if mini_node_test: mac_address = coap_client.getValue(ip,'/network','mac')
+        else: mac_address = coap_client.getMAC(ip)
+        mac_address = str(mac_address.upper())
         updateLog('SN: ',sn, 'MAC: ',mac_address)
+
+    if mini_node_test: 
+        mnode.init(ip,test_config,serial_number)
+        print("Initializing Mini Node Test")
+
+    elif els_node_test: 
+        print("Initializing ELS test")
+        coap_client.putValue(ip,'/actuators/actuator1','els','true')
+        coap_client.putValue(ip,'/actuators/actuator1','els','true')
+        coap_client.putValue(ip,'/actuators/actuator1','dimels',100)
+        coap_client.putValue(ip,'/actuators/actuator2','dimels',100)
+
+    elif usbc_node_test: print("Initializing USBC Node Test")
+    elif battery_backup_test: 
+        #device = 'Battery Backup'
+        mac_address = 'N/A'
+        print("Initializing battery backup test")
+
+    elif supernode_test:
+        print("Initializing supernode test")
+        snode.init(ip,test_config)
+        #device = 'Supernode'
+        # count = 0
+        # while count != 10:
+        #     coap_client.putValue(ip,'/network','lldp_enable','false')
+        #     lldp_setting = coap_client.getValue(ip,'/network','lldp_enable')
+        #     if lldp_setting == 'false':
+        #         print("LLDP has been set to false")
+        #         break
+        # if lldp_setting != 'false': print("LLDP failed to set to false. Failed after",count,"retries")
+        coap_client.set_lldp(ip,False)
+
+        igain10_variable = 'cv_igain10'
+        if device == 'Supernode CC' or 'Supernode': 
+            igain10_variable = 'cc_igain10'
+            count = 0
+            while count != 10:
+                coap_client.putValue(ip,'/actuators/actuator1',igain10_variable,7)
+                igain10_setting = coap_client.getValue(ip,'/actuators/actuator1',igain10_variable)
+                if igain10_setting == 7:
+                    print(igain10_variable, "has been set to", igain10_setting)
+                    break
+            if igain10_setting != 7: print(igain10_variable, "failed to set to", 7, "after", count, "retries")
+        if device == 'Supernode CV' or 'Supernode':
+            igain10_variable = 'cv_igain10'
+            count = 0
+            while count != 10:
+                coap_client.putValue(ip,'/actuators/actuator1',igain10_variable,15)
+                igain10_setting = coap_client.getValue(ip,'/actuators/actuator1',igain10_variable)
+                if igain10_setting == 15:
+                    print(igain10_variable, "has been set to", igain10_setting)
+                    break
+            if igain10_setting != 15: print(igain10_variable, "failed to set to", 15, "after", count, "retries")
+
+
+        for i in range(1,8):
+            coap_client.putValue(ip,'/sensors/input'+str(i),'sentype','disable') # change sensor 1 events supernode version
+            coap_client.putValue(ip,'/sensors/input'+str(i),'eventlh','default') 
+            coap_client.putValue(ip,'/sensors/input'+str(i),'eventhl','default') # change sensor 1 events supernode version
+
+        # coap_client.setSentype(ip,0,'disable')
+        # coap_client.setEventLH(ip,0,'default')
+        # coap_client.setEventHL(ip,0,'default')
+
+    else:
+        if not mini_node_test:
+            coap_client.putValue(ip,'/network','cmd','set_ws 0')
+            coap_client.putValue(ip,'/network','cmd','set_max_amp 3 2500')
     
     if 'subnet' in test_config:
         if testSubnet(test_config['subnet']):
@@ -537,11 +835,12 @@ def runTest():
                 return False
     if board_version != '':
         if testBoardVersion(board_version):
-            updateState('runTest','pass - board_version','Pass','board_version')
+            updateState('runTest','pass - board_version','Pass',f'board_version:{board_version}')
         else:
-            updateState('runTest','fail - board_version','Fail','board_version')
+            updateState('runTest','fail - board_version','Fail',f'board_version:{board_version}')
             if stop_on_failure:
                 return False
+
     if 'cccv' in test_config:
         if testCCCV(test_config['cccv']):
             updateState('runTest','pass - cccv','Pass','cccv')
@@ -564,20 +863,27 @@ def runTest():
             if stop_on_failure:
                 return False
     if 'loads' in test_config:
+        #print("starting loads test")
         if testLoads(test_config['loads']):
             updateState('runTest','pass - loads','Pass','loads')
         else:
             updateState('runTest','fail - loads','Fail','loads')
             if stop_on_failure:
                 return False
-    if 'sensor1' in test_config: # Unsure why this has a parameter
+    if 'rgbw' in test_config:
+        if not isinstance(test_config['rgbw'], list) or not all(isinstance(x, int) for x in test_config['rgbw']):
+            print("RGBW Sets in test_config must be formatted as a list of ints. Proceeding with default values.")
+            rgbw_sets = [4278190080,16711680,65280,255,4294967295]
+        else: rgbw_sets = test_config['rgbw']
+        if mini_node_test: mnode.rgbw_test(rgbw_sets)
+    if 'sensor1' in test_config and test_config['sensor1']: # Unsure why this has a parameter
         if testSensor1(test_config['sensor1']):
             updateState('runTest','pass - sensor1','Pass','sensor1')
         else:
             updateState('runTest','fail - sensor1','Fail','sensor1')
             if stop_on_failure:
                 return False
-    if 'pdline' in test_config:
+    if 'pdline' in test_config and test_config['pdline']:
         if testPDLine(test_config['pdline']): # Unsure why this has a parameter
             print('pass','pdline')
             updateState('runTest','pass - pdline','Pass','pdline')
@@ -585,7 +891,6 @@ def runTest():
             updateState('runTest','fail - pdline','Fail','pdline')
             if stop_on_failure:
                 return False
-
     if 'battery_backup_loads' in test_config:
         battery_backup_test = True
         mac_address = ''
@@ -597,10 +902,35 @@ def runTest():
             updateState('runTest','fail - battbackup','Fail','battbackup')
             if stop_on_failure:
                 return False
-
+    if mini_node_test: 
+        print("Starting firmware upgrade...")
+        mnode.firmware_upgrade_test()
+    if supernode_test:
+        if snode.dc_in_test(): 
+            updateState('runtest','pass - dc in','Pass','dc in')
+        else: 
+            updateState('runtest','fail - dc in','Fail','dc in')
+        count: int = 0
+        while count != 10:
+            coap_client.putValue(ip,'/network','lldp_enable','true')
+            lldp_setting = coap_client.getValue(ip,'/network','lldp_enable')
+            if lldp_setting == 'true':
+                print("LLDP has been set to true")
+                break
+        if lldp_setting != 'true': print("LLDP failed to set to true. Failed after",count,"retries")
+    
+    if supernode_test:
+        for i in range(1,9): coap_client.secure_setting(ip,f'/actuators/actuator{i}','fadetime',2000)
+    if 'supernode_commission' in test_config:
+        if snode.commission(test_config['supernode_commission']):
+            updateState('runTest','pass - commission supernode', 'Pass','commission supernode')
+        else:
+            updateState('runTest','fail - commission supernode', 'Fail','commission supernode')
+            if stop_on_failure: 
+                return False
     if 'maxw_commission' in test_config:
         commissioning = True
-        testMAXW(test_config['maxw_commission']) # sets both channels to commission requirement @ end of test - Drew
+        testMAXW(test_config['maxw_commission'])
     if 'cmd' in test_config:
         if testCMD(test_config['cmd']):
             updateState('runTest','pass - cmd','Pass','cmd')
@@ -621,11 +951,11 @@ def start():
         updateState('start','failed - cannot open controller port','Failed','Cannot open controller port')
         return False
     controller.print_rx = debug_print # debug
-    controller.startRXThread()
+    controller.startRXThread() # Check to see if this is causing console bloat - Drew
     if not getIP():
         updateState('start','failed - cannot get node ip','Failed','Cannot get node ip')
         return False
-    if not load.open():
+    if not load.open() and 'load' in test_config:
         updateState('start','failed - cannot open electronic load','Failed','Cannot open electronic load')
         return False
     return True
@@ -665,58 +995,108 @@ def checkCCCV(arg):
         CV_json = True
         print('CV_json')
 
+def checkSetSerialNumber(arg):
+    global set_sn, sn_leading_digits_to_set_sn
+    if arg[:6] == 'set_sn': 
+        print("Set SN Mode Active")
+        set_sn = True
+        sn_leading_digits_to_set_sn = arg[6:]
+        print(sn_leading_digits_to_set_sn)
+    elif arg[:5] == 'setsn': 
+        print("Set SN Mode Active")
+        set_sn = True
+        sn_leading_digits_to_set_sn = arg[5:]
+
 def checkCustomDevice(arg):
-    global battery_backup_test
-    global custom_sn
-    if arg[:2] == 'BB':
+    global device, els_node_test, supernode_test, usbc_node_test, battery_backup_test, mini_node_test, custom_sn
+    if arg == 'mini_node' or arg == 'mini' or arg == 'mnode':
+        mini_node_test = True
+        device = "Mini Node"
+    elif arg[:5] == 'super':
+        supernode_test = True
+        device = 'Supernode'
+        if arg == 'supercv': device = 'Supernode CV'
+        elif arg == 'supercc': device = 'Supernode CC'
+    elif arg == 'els' or arg == 'ELS':
+        els_node_test = True
+        device = 'ELS Node'
+    elif arg == 'usbc':
+        usbc_node_test = True
+        device = 'USBC Node'
+    elif arg[:2] == 'BB':
         battery_backup_test = True
         custom_sn = arg
+        device = 'Battery Backup'
         print("Recorded Serial Number will be: ", custom_sn)
 
-
+def checkCSV(arg):
+    global csv_filename
+    if 'csv' in arg.lower():
+        csv_filename = str(arg).lower().replace('.', '').replace('csv', '')
+        if csv_filename == 'no': csv_filename = None
+        else:
+            csv_filename = f"{csv_filename}.csv"
+            #print(f"NODE WILL BE RECORDED IN {csv_filename}.")
 
 def checkArg(arg):
-    return checkSkipDB(arg) or checkVerbose(arg) or checkCCCV(arg) or checkCustomDevice(arg)
+    return checkSkipDB(arg) or checkVerbose(arg) or checkCCCV(arg) or checkCustomDevice(arg) or checkSetSerialNumber(arg) or checkCSV(arg)
     
 ###################
 
-def write_to_csv(csv_file_path = "experimentation.csv", sn_to_csv = None,mac_to_csv = None):
+def write_to_csv(csv_file_name, sn_to_csv = None,mac_to_csv = None):
+    
+    # Define the folder path where the CSV files will be saved
+    folder_path = "records"
+    
+    # Create the 'records' folder if it doesn't exist
+    if not os.path.exists(folder_path):
+        os.makedirs(folder_path)
+
+    # Set the full path for the CSV file inside the 'records' folder
+    csv_file_name = os.path.join(folder_path, csv_file_name)
+
+    # Note to delete or rework how sn_to_cv and mac_to_csv work.
+    sn_exists = False
+    mac_exists = False
+
     # Check if the CSV file exists; if not, create it
-    if not os.path.isfile(csv_file_path):
-        with open(csv_file_path, 'w', newline='') as csvfile:
-            fieldnames = ['Serial Number', 'MAC Address']
+    if not os.path.isfile(csv_file_name):
+        with open(csv_file_name, 'w', newline='') as csvfile:
+            fieldnames = ['Device','Rev','Serial Number', 'MAC Address','Status','Date']
             writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
             writer.writeheader()
-    with open(csv_file_path, 'r') as csvfile:
+
+    with open(csv_file_name, 'r') as csvfile:
         lines = csvfile.readlines()
         for line in lines:
-            if sn_to_csv in line: 
-                print("SERIAL NUMBER ALREADY IN FILE")
-                sn_to_csv = ''
-            if mac_to_csv in line:
+            if sn_to_csv and sn_to_csv in line: 
+                print(f"SERIAL NUMBER ALREADY IN {csv_file_name}.")
+                sn_exists = True
+            if mac_to_csv.lower() in line.lower() and mac_to_csv != "N/A":
                 if not mac_to_csv == '' or None:
-                    print("MAC ADDRESS ALREADY IN FILE")
-                mac_to_csv = ''
-    if sn_to_csv is not mac_to_csv:
-        with open(csv_file_path, 'a', newline='') as csvfile:
-                    fieldnames = ['Serial Number', 'MAC Address']
+                    print(f"MAC ADDRESS ALREADY IN {csv_file_name}.")
+                mac_exists = True
+
+    if not sn_exists and not mac_exists:
+        with open(csv_file_name, 'a', newline='') as csvfile:
+                    fieldnames = ['Device','Rev','Serial Number', 'MAC Address','Status','Date']
                     writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
 
                     # Check if the file is empty; if yes, write the header
-                    file_empty = csvfile.tell() == 0
-                    writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
-                    if file_empty:
+                    if os.path.getsize(csv_file_name) == 0 or not lines: 
+                        print("Writing header.")
                         writer.writeheader()
-                        
-                    writer.writerow({'Serial Number': sn_to_csv, 'MAC Address': mac_to_csv})
 
-        print("Data has been written to", csv_file_path)
+                    current_time = str(time.strftime("%Y-%m-%d %H:%M:%S", time.localtime()))
+                    writer.writerow({'Device': device,'Rev': board_version.capitalize(), 'Serial Number': sn_to_csv, 'MAC Address': mac_to_csv.upper(), 'Status': 'Pass', 'Date': current_time})
+
+        print(sn_to_csv,"has been written to", csv_file_name)
     else: print("NO DATA HAS BEEN WRITTEN.")
 
 ###################
 
 def main(argv, arc):
-    global test_id, serial_number, board_version
+    global test_id, serial_number, mac_address, board_version, csv_filename
     #print(argv, arc)
     if arc > 1:
         if not checkArg(argv[1]):
@@ -735,6 +1115,7 @@ def main(argv, arc):
             if not checkArg(argv[i]) and not checkScanSN(argv[i]):
                 pass
     final_pass = False
+
     if start():
         updateState('main','test start','Started','Test started')
         if runTest():
@@ -744,14 +1125,22 @@ def main(argv, arc):
             updateState('main','test end - fail','Completed','Fail')
     stop()
     if final_pass:
-        print('final - pass')
+        print('\nfinal - pass')
 
-        if "append_to_file" in test_config:
+        # print("CSV Filename:",csv_filename)
+        if "append_to_file" in test_config and test_config["append_to_file"] != False:
             if battery_backup_test:
                 serial_number = custom_sn
-            write_to_csv(test_config["append_to_file"],serial_number,mac_address)
+                print("Battery Backup Serial Number:",serial_number)
+                mac_address = 'N/A'
+            if csv_filename == '': 
+                t = time.localtime()
+                csv_filename = f"{t.tm_year % 100}_{t.tm_mon}_{t.tm_mday}.csv"
+                # print("CSV Filename:",csv_filename)
+            if csv_filename == None: print("argument 'nocsv' was set, not writing to any csv file.")
+            else: write_to_csv(csv_filename, serial_number, mac_address)
     else:
-        print('final - fail')
+        print('\nfinal - fail')
     print('done')
 
 if __name__ == '__main__':
