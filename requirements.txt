@@ -6,3 +6,5 @@ pyvisa-py
 pyusb
 zeroconf
 psutil
+pyserial
+yaml
