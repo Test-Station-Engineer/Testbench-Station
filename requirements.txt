@@ -7,4 +7,3 @@ pyusb
 zeroconf
 psutil
 pyserial
-yaml
