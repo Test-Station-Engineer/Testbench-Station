@@ -5,7 +5,8 @@ import controller
 import coap_client
 import load
 import database
-import json
+# import json
+import yaml
 import time
 import sys
 import coap_client_scan
@@ -137,15 +138,18 @@ def loadTestJSON():
         # Open and load the JSON file from the 'config' folder
         with open(file_name) as f:
             #test_config = json.load(f)
-            test_config = json.load(f)
+            test_config = yaml.load(f)
             updateLog(test_config)
             return True
     except FileNotFoundError:
         print(f"Error: {file_name} not found.")
         return False
-    except json.JSONDecodeError:
+    except yaml.YAMLError:
         print(f"Error: Failed to decode JSON from {file_name}.")
         return False
+    # except json.JSONDecodeError:
+    #     print(f"Error: Failed to decode JSON from {file_name}.")
+    #     return False
     except Exception as e:
         print(f"An unexpected error occurred: {e}")
         return False
