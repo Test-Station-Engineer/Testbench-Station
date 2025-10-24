@@ -8,7 +8,7 @@ device = 0
 res_els = [
 'USB0::62700::5665::SDL13GCC7R0064::0::INSTR',
 'USB0::62700::5665::SDL13GCC7R0069::0::INSTR',
-'ASRL198::INSTR'
+'ASRL4::INSTR'
 ]
 
 def open():

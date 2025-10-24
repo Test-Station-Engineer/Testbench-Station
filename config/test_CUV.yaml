@@ -1,11 +1,11 @@
 {
-  "subnet": "192.168.1.255",
-  "cxode_version": "2out v Dec  9 2024 15:33:50",
+  "code_version": "2out v Jun  5 2025 09:30:32",
   "update_db": false,
   "maxw": 713,
   "hold_time": 2,
   "loads": [
     { "cccv": 0, "CV": 40, "dim": 100, "power":60 },
+    { "cccv": 0, "CV": 40, "dim": 0, "below_power":0.05 },
     { "cccv": 1, "CC": 3.3, "dim": 100, "power": 36.0 },
     { "cccv": 2, "CC": 2.5, "dim": 100, "power": 56.0 },
     { "cccv": 3, "CC": 2.0, "dim": 100, "power": 66.0 },

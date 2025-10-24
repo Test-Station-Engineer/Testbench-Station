@@ -32,7 +32,7 @@ mac_address: str = ''
 board_version: str = ''
 
 #port: str = '/dev/ttyUSB0'
-port: str = 'COM202'
+port: str = 'COM3'
 baud: int = 115200
 timeout: int = 0 # use RX thread
 
@@ -490,8 +490,8 @@ def testLoad(test_load):
     # MIGHT NEED TO LOOK BACK AT PUTTING THIS IN IF DIM PROBLEMS PERSIST
 
     time.sleep(0.5)
-                
-    if ('CR' in test_load or 'CC' in test_load or 'CV' in test_load) and 'power' in test_load:
+
+    if ('CR' in test_load or 'CC' in test_load or 'CV' in test_load) and ('power' in test_load or 'below_power' in test_load):
 
         # SET RELAYS
         if battery_backup_test: relays = ['output1'] # Accounts for when you are doing a battery backup test 

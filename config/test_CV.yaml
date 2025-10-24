@@ -1,6 +1,5 @@
 {
-  "subnet": "192.168.1.255", # Searches through this set of IPs (e.g. 192.168.3.255 will search 192.168.3.abc - 192.168.3.255)
-  "cxode_version": "2out v Jun  5 2025 09:30:32",
+  "code_version": "2out v Jun  5 2025 09:30:32",
   "update_db": true,
 
   "trigger_1_test": true,
@@ -12,7 +11,7 @@
   "hold_load_time": 5,
   "loads": [
     { "cccv": 1, "CC": 3.3, "dim": 100, "power": 36.0 },
-    { "cccv": 1, "CC": 3.3, "dim": 0, "power": 0.0 },
+    { "cccv": 1, "CC": 3.3, "dim": 0, "below_power": 0.05 },
     { "cccv": 2, "CC": 2.5, "dim": 100, "power": 56.0 },
     { "cccv": 3, "CC": 2.0, "dim": 100, "power": 66.0 },
     { "cccv": 4, "CC": 1.5, "dim": 100, "power": 66.0 },
