@@ -5,7 +5,6 @@ import controller
 import coap_client
 import load
 import database
-# import json
 import yaml
 import time
 import sys
@@ -37,13 +36,15 @@ port: str = 'COM202'
 baud: int = 115200
 timeout: int = 0 # use RX thread
 
-scan_sn: bool = False
+scan_sn: bool = True # Set to false by default if we implement COM-based discovery again (cut feature unfortunately)
+database.skip_db = True
 
 maxw_save = None
 cccv_save = None
 
-CC_json: bool = False
-CV_json: bool = False
+CC_yaml: bool = False
+CV_yaml: bool = False
+CUV_yaml: bool = False
 
 # CUSTOM DEVICE SETTINGS
 # Mini Node Settings
@@ -57,7 +58,6 @@ usbc_current_channel = ''
 supernode_test: bool = False
 # Battery Backup Settings
 battery_backup_test: bool = False
-await_key: str = 'w'
 
 # Commissioning 
 commissioning: bool = False
@@ -69,6 +69,14 @@ sn_leading_digits_to_set_sn: str
 
 device: str = ''
 node_channels: int = 2 # How many channels for a node. 2 by default
+
+general_settings_config = None
+scan_range_start = 2
+scan_range_end = 255
+test_config = None
+
+prompt_continue_key: str = 'DOWN'
+prompt_end_test_key: str = 'Esc'
 
 csv_filename: str = ''
 
@@ -91,79 +99,86 @@ def updateLog(*args):
         print(desc)
         database.updateTestLog(test_id,serial_number,board_version,desc)
 
-test_config = None
+def load_yaml(file_path):
+    """Load a YAML file safely, updating logs if successful."""
+    if not os.path.exists(file_path):
+        print(f"Error: {file_path} not found.")
+        return None
 
-def loadTestJSON():
-    global device
-    global test_config
-    
-    # Define the folder path where the JSON files are located
+    try:
+        with open(file_path) as f:
+            data = yaml.safe_load(f)
+            updateLog(data)
+            return data
+    except yaml.YAMLError:
+        print(f"Error: Failed to decode YAML from {file_path}.")
+    except Exception as e:
+        print(f"An unexpected error occurred: {e}")
+    return None
+
+def load_settings():
+    global general_settings_config
     folder_path = "config"
-
-    # Ensure the 'config' folder exists (optional step)
-    if not os.path.exists(folder_path):
-        print(f"Error: The '{folder_path}' folder does not exist.")
+    file_name = os.path.join(folder_path, "general_settings.yaml")
+    general_settings_config = load_yaml(file_name)
+    if general_settings_config is not None: return True
+    else: 
+        print("General Settings wasn't loaded. Please troubleshoot.")
         return False
 
-    # Default file name
-    file_name = os.path.join(folder_path, 'test.json')
-    
-    if CV_json:
-        file_name = os.path.join(folder_path, 'test_CV.json')
-        device = 'CV-RS485'
-    elif CC_json:
-        device = 'CC-0-10'
-        file_name = os.path.join(folder_path, 'test_CC.json')
+def load_test_config():
+    global device, test_config
+
+    folder_path = "config"
+    file_name = os.path.join(folder_path, "test.yaml")  # default
+
+    if CV_yaml:
+        file_name = os.path.join(folder_path, "test_CV.yaml")
+        device = "CV-RS485"
+    elif CC_yaml:
+        file_name = os.path.join(folder_path, "test_CC.yaml")
+        device = "CC-0-10"
+    elif CUV_yaml:
+        device = 'CUV'
+        file_name = os.path.join(folder_path, 'test_CUV.yaml')
     elif mini_node_test:
-        file_name = os.path.join(folder_path, 'test_mini_node.json')
+        file_name = os.path.join(folder_path, 'test_mini_node.yaml')
     elif battery_backup_test:
         # device = 'Battery Backup' # Redundant, done in CheckCustomDevice(arg)
-        file_name = os.path.join(folder_path, 'test_battery_backup.json')
+        file_name = os.path.join(folder_path, 'test_battery_backup.yaml')
     elif supernode_test:
         if device == 'Supernode':
-            file_name = os.path.join(folder_path, 'test_supernode.json')
+            file_name = os.path.join(folder_path, 'test_supernode.yaml')
         elif device == 'Supernode CV':
-            file_name = os.path.join(folder_path, 'test_supernode_CV.json')
+            file_name = os.path.join(folder_path, 'test_supernode_CV.yaml')
         elif device == 'Supernode CC':
-            file_name = os.path.join(folder_path, 'test_supernode_CC.json')
+            file_name = os.path.join(folder_path, 'test_supernode_CC.yaml')
     elif usbc_node_test:
         # device = 'USBC Node' # Redundant, done in CheckCustomDevice(arg)
-        file_name = os.path.join(folder_path, 'test_usbc.json')
+        file_name = os.path.join(folder_path, 'test_usbc.yaml')
     elif els_node_test: 
         device = 'ELS Node'
     else:
         device = 'CC-0-10'
-
-    try:
-        # Open and load the JSON file from the 'config' folder
-        with open(file_name) as f:
-            #test_config = json.load(f)
-            test_config = yaml.load(f)
-            updateLog(test_config)
-            return True
-    except FileNotFoundError:
-        print(f"Error: {file_name} not found.")
-        return False
-    except yaml.YAMLError:
-        print(f"Error: Failed to decode JSON from {file_name}.")
-        return False
-    # except json.JSONDecodeError:
-    #     print(f"Error: Failed to decode JSON from {file_name}.")
-    #     return False
-    except Exception as e:
-        print(f"An unexpected error occurred: {e}")
+    test_config = load_yaml(file_name)
+    if test_config is not None: return True
+    else:
+        print("test config not loaded. Please troubleshoot.")
         return False
 
 ip = ''
 def getIP():
-    global ip
+    global ip, scan_range_start, scan_range_end
     updateLog('getIP','start')
     if mini_node_test: coap_client_scan.is_mini_node = True
     if scan_sn:
-        if 'subnet' in test_config:
-            coap_client_scan.subnet = test_config['subnet']
+        if 'subnet' in general_settings_config: 
+            coap_client_scan.subnet = general_settings_config['subnet']
+            if 'scan_start' in general_settings_config: scan_range_start = general_settings_config['scan_start']
+            if 'scan_end' in general_settings_config: scan_range_end = general_settings_config['scan_end']
         else:
             host_ip = subprocess.run(['hostname', '-I'], stdout=subprocess.PIPE).stdout.decode('utf-8').split(' ')[0]
+            print("USING HOST IP. HOST IP IS: ",host_ip)
             host_ip_split = host_ip.split('.')
             host_ip_split[3] = '255'
             coap_client_scan.subnet = '.'.join(host_ip_split)
@@ -174,7 +189,8 @@ def getIP():
         else: 
             print('scan subnet',coap_client_scan.subnet,'for sn',serial_number)
             coap_client_scan.serial_number = serial_number
-        coap_client_scan.scan()
+            coap_client_scan.scan(scan_range_start,scan_range_end)
+            #coap_client_scan.scan()
         for node in coap_client_scan.nodes:
             print(node['ip'],node['network']['serialnum'])
             if node['network']['serialnum'] == serial_number:
@@ -213,6 +229,8 @@ def testSubnet(subnet):
             return True
         if ip_split[i] != subnet_split[i]:
             updateLog('testSubnet','fail subnet mismatch')
+            print("IP Split:",ip_split)
+            print("Subnet Split:",subnet_split)
             return False
     updateLog('testSubnet','ip == subnet')
     return True
@@ -233,7 +251,7 @@ def testCodeVersion(code_version):
             while elapsed < 100:
                 time.sleep(1.0)
                 elapsed += 1
-                #print('\r waiting for reboot: ',str(elapsed),endl='') # Returns an error - Drew
+                print('\r waiting for reboot: ',str(elapsed),endl='') # Returns an error - Drew
             golden = coap_client.getGoldenVersion(ip)
             if require_golden_match == True:
                 if  golden != code_version:
@@ -245,6 +263,7 @@ def testCodeVersion(code_version):
         updateLog('testCodeVersion','fail dfd',dfd)
         if dfd_match_required:
             return False
+    else: print("DFD Version Correctly Matches DFU.")
     return True
 
 def testSerialNumber(sn):
@@ -260,10 +279,13 @@ def testSerialNumber(sn):
 
 def testBoardVersion(bv):
     # no set board version
-    get_bv = coap_client.getBoardVersion(ip)
-    if get_bv != str(bv):
-        updateLog('testBoardVersion','fail get',get_bv)
-        return False
+    if mini_node_test: 
+        if not mnode.get_board_version(ip): return False
+    else: 
+        get_bv = coap_client.getBoardVersion(ip)
+        if get_bv != str(bv):
+            updateLog('testBoardVersion','fail get',get_bv)
+            return False
     return True
 
 def testTrigger(number_of_times_to_restart,seconds_to_wait_for_restart):
@@ -364,27 +386,67 @@ def setMux(channel: int, verbose: bool = True, delay:float = 0.25):
 def testLoad(test_load):
     ran_once : bool = False
 
-    def power_check(turn_off_load_after: bool = True):
+    power_threshold: float = 0.0        # Comes from test parameters, power measured checks against this value
+    turn_load_off_after: bool = True    # Whether or not to turn load machine off after a measurement is finalized
+    invert_power_thresh: bool = False   # Used when checking if power is BELOW or equal to the threshold power instead of GREATER than or equal to it
+
+    # Checks to see how power threshold should be compared to power measured
+    if 'below_power' in test_load:
+        invert_power_thresh = True
+        power_threshold = float(test_load['below_power'])
+    elif 'power' in test_load: 
+        invert_power_thresh = False
+        power_threshold = float(test_load['power'])
+    else: 
+        print(f"WARNING: LOAD {test_load} HAS NO POWER THRESHOLD LISTED")
+        pass
+
+    # Internal function to measure power
+    def power_check(power_to_check_against: float, turn_off_load_after: bool = True, reverse_power_thresh: bool = False):
         """Measures power once, then if it is below expected, it will wait and measure again.
         \nIf it's still inadequate, it will pause and await user input.
         \nIf still inadequate, it will fail and turn load machine off, if input var is true."""
         
         power = load.measurePower()
 
-        # If power measured is less than required, wait, then measure again. Then await the user to measure a third time
-        if power < test_load['power']: 
-            print("Failed initial power test at",power,"watts. Awaiting new measurement.")
+        # If power to check against is less than power measured, wait, then measure again. Then await the user to measure a third time
+        if reverse_power_thresh: test_value = power_to_check_against - power
+        # If power measured is less than power required, wait, then measure again. Then await the user to measure a third time
+        else: test_value = power - power_to_check_against
+
+        #if power < test_load['power']: 
+        if test_value < 0:
+            if reverse_power_thresh: print(f"Failed initial power test at {power} watts. Expected at most {power_to_check_against} watts. Awaiting new measurement...")
+            else: print(f"Failed initial power test at {power} watts. Expected at least {power_to_check_against} watts. Awaiting new measurement...")
+
             time.sleep(3.0)
             power = load.measurePower()
-            if power < test_load['power']:
-                misc.send_test_prompt(misc.key,f"TEST STATION PAUSED. PRESS {misc.key} TO CONTINUE.","CONTINUING TEST.")
+
+            # Second Power Check
+            # If power to check against is less than power measured, wait, then measure again. Then await the user to measure a third time
+            if reverse_power_thresh: test_value = power_to_check_against - power
+            # If power measured is less than power required, wait, then measure again. Then await the user to measure a third time
+            else: test_value = power - power_to_check_against
+
+            #if power < test_load['power']: 
+            if test_value < 0:
+                misc.send_test_prompt(misc.key,f"TEST STATION PAUSED. PRESS {misc.key} TO CONTINUE.","CONTINUING TEST...")
                 power = load.measurePower()
 
             # Sets load output off
             load.setOutputOn(False)
 
             # if power is less than required, fail it. Else, pass it
-            if power < test_load['power']:
+            if reverse_power_thresh: 
+                test_value = power_to_check_against - power
+                #print("power_to_check_against - power_measured =",power)
+
+            else: 
+                test_value = power - power_to_check_against
+                #print("power_measured - power_to_check_against =",power)
+                
+            #if power < test_load['power']: 
+            if test_value < 0:
                 misc.updateLog('testLoad',relay,'fail power',power)
                 return False
             else: 
@@ -418,12 +480,14 @@ def testLoad(test_load):
         if not snode.load_test(test_load): return False
         else: return True
 
-    dim: int = 100
-    if 'dim' in test_load: dim = test_load['dim']
+    # dim: int = 100
+    # if 'dim' in test_load: dim = test_load['dim']
                 
-    coap_client.setDim(ip,3,10)
-    time.sleep(1)
-    coap_client.setDim(ip,3,dim)
+    # coap_client.setDim(ip,3,10)
+    # time.sleep(1)
+    # coap_client.setDim(ip,3,dim)
+
+    # MIGHT NEED TO LOOK BACK AT PUTTING THIS IN IF DIM PROBLEMS PERSIST
 
     time.sleep(0.5)
                 
@@ -435,7 +499,13 @@ def testLoad(test_load):
         elif usbc_node_test: relays = [usbc_current_channel] # usbc_current_channel is set in the test_loads function
 
         else:
-            #coap_client.setDim(ip,3,dim)
+            # Dim set happens here
+            dim: int = 100
+            if 'dim' in test_load: dim = test_load['dim']
+            coap_client.setDim(ip,3,10)
+            time.sleep(1)
+            coap_client.setDim(ip,3,dim)
+
             dim1 = coap_client.getDim(ip,1)
             dim2 = coap_client.getDim(ip,2)
 
@@ -472,13 +542,14 @@ def testLoad(test_load):
             if 'hold_load_time' in test_config: time.sleep(test_config['hold_load_time'])
             time.sleep(1.0)
 
-            power_check(True)
+            # This is where power is checked
+            if invert_power_thresh: power_check(power_threshold,turn_load_off_after, invert_power_thresh)
+            else: power_check(power_threshold,turn_load_off_after)
 
             ran_once = True
 
         return True
     
-    # SUPERNODE RELATED SUPERNODE RELATED SUPERNODE RELATED SUPERNODE RELATED SUPERNODE RELATED SUPERNODE RELATED 
     if supernode_test: load.setOutputOn(False)
 
     return True
@@ -702,12 +773,12 @@ def testBatteryLoad(upper_load,lower_load,key,wait_time):
 def testBatteryBackup(batt_test_load):
     if "Low Load" in batt_test_load: low_load = batt_test_load["Low Load"]
     else: 
-        print("No Low Load in json file")
+        print("No Low Load in yaml file")
         return False
 
     if "High Load" in batt_test_load: high_load = batt_test_load["High Load"]
     else:
-        print("No High Load in json file")
+        print("No High Load in yaml file")
         return False
 
     if "await_key" in test_config: await_key = test_config["await_key"]
@@ -720,6 +791,50 @@ def testBatteryBackup(batt_test_load):
         return False
 
     return True
+
+# def commission(commission_settings_list):
+#     for index,setting in enumerate(commission_settings_list):
+#         if index == 0: continue
+#         if 'resource' in setting: resource = setting['resource']
+#         else: print("No resource set for this setting")
+#         if 'key' in setting: key = setting['key']
+#         else: print("No key set for this setting")
+#         if 'value' in setting: value = setting['value']
+#         else: print("No value set for this setting")
+
+#         if not coap_client.secure_setting(ip,resource,key,value,True): return False
+#     return True
+
+def commission(commission_settings):
+
+    settings_list = commission_settings.get("settings", [])
+    success = True  # track overall success
+    
+    for setting in settings_list:
+        resource = setting.get("resource")
+        key = setting.get("key")
+        value = setting.get("value")
+
+        if not resource:
+            print("No resource set for this setting")
+            success = False
+            continue
+        if not key:
+            print("No key set for this setting")
+            success = False
+            continue
+        if value is None:
+            print("No value set for this setting")
+            success = False
+            continue
+
+        # Apply the setting
+        if not coap_client.secure_setting(ip, resource, key, value, True):
+            print(f"Failed to apply {key}={value} on {resource}")
+            success = False
+
+    return success
+
 
 def runTest():
     global device
@@ -906,9 +1021,17 @@ def runTest():
             updateState('runTest','fail - battbackup','Fail','battbackup')
             if stop_on_failure:
                 return False
-    if mini_node_test: 
+    if mini_node_test and 'firmware_upgrade' in test_config and test_config['firmware_upgrade']: 
         print("Starting firmware upgrade...")
         mnode.firmware_upgrade_test()
+    if 'commission' in test_config: # Working on commission in main branch - Drew
+        commission_settings = test_config['commission']
+        if 'toggle' in commission_settings and commission_settings['toggle'] == 1:
+            print("Commissioning Node")
+            if commission(commission_settings): 
+                updateState('runtest','pass - commission','Pass','commission')
+            else: updateState('runtest','fail - commission','Fail','commission')
+        else: print("Commission settings missing or toggled off.")
     if supernode_test:
         if snode.dc_in_test(): 
             updateState('runtest','pass - dc in','Pass','dc in')
@@ -948,8 +1071,11 @@ def start():
     if not database.connect():
         updateState('start','failed - cannot connect to database','Failed','Cannot connect to database')
         return False
-    if not loadTestJSON():
-        updateState('start','failed - cannot load test.json','Failed','Cannot load test.json')
+    if not load_settings():
+        updateState('start','failed - cannot load general_settings.yaml','Failed','Cannot connect to database')
+        return False
+    if not load_test_config():
+        updateState('start','failed - cannot load test.yaml','Failed','Cannot load test.yaml')
         return False
     if not controller.open(port,baud,timeout):
         updateState('start','failed - cannot open controller port','Failed','Cannot open controller port')
@@ -990,14 +1116,18 @@ def checkSkipDB(arg):
         return True
     return False
 
-def checkCCCV(arg):
-    global CC_json, CV_json
-    if arg == 'CC':
-        CC_json = True
-        print('CC_json')
-    elif arg == 'CV':
-        CV_json = True
-        print('CV_json')
+def checkCCCV(arg: str):
+    global CC_yaml, CV_yaml, CUV_yaml
+    if arg.lower() == 'cc':
+        CC_yaml = True
+        print('CC_yaml')
+    elif arg.lower() == 'cv':
+        CV_yaml = True
+        print('CV_yaml')
+    elif arg.lower() == 'cuv' or arg.lower() == 'cccv':
+        CUV_yaml = True
+        print('CUV_yaml')
+    else: return False
 
 def checkSetSerialNumber(arg):
     global set_sn, sn_leading_digits_to_set_sn
@@ -1013,9 +1143,9 @@ def checkSetSerialNumber(arg):
 
 def checkCustomDevice(arg):
     global device, els_node_test, supernode_test, usbc_node_test, battery_backup_test, mini_node_test, custom_sn
-    if arg == 'mini_node' or arg == 'mini' or arg == 'mnode':
+    if arg in ('mini_node', 'mini', 'mnode', 'core_node', 'core', 'cnode'):
         mini_node_test = True
-        device = "Mini Node"
+        device = "Core Node"
     elif arg[:5] == 'super':
         supernode_test = True
         device = 'Supernode'

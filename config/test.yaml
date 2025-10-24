@@ -1,0 +1,25 @@
+{
+  "code_version": "2out v Jun  5 2025 09:30:32", # Check to see if code version matches up with this one.
+
+  # Trigger 1 Settings
+  "trigger_1_test": false, # Will test to see if the node handles being prompted to restart
+  "chance_to_test_trigger_1": 100.0, # Self explanatory. Used for sample testing. 100 means guaranteed.
+  "number_of_trigger_1_attempts": 10.0, # Number of times it will restart the node
+  "seconds_to_wait_for_restart": 8.0, # How long to wait for IP address discovery. 
+
+  # Main Test Settings
+  "update_db": false, # Runs "update_db" on the node
+  "cccv": 0, # Sets desired cccv value
+  "maxw": 713, # Sets max watt for load test
+  "hold_load_time": 2.5, # Determines how long the load will be kept on for
+
+  "load": { "CV": 40, "dim": 100, "power":60 },
+  
+  "sensor1": true, # Toggle for sensor test
+  "pdline": true, # Toggle for wallswitch test
+  "append_to_file": true, # csv file name/toggle. If it's a string, it assumes true and sets the name equal to string. If just true, it uses the date as the file name. If false, disables it.
+
+  # Commission Settings
+  "maxw_commission": 180, # Sets device to this max watt after testing
+  "cmd": ["set_dim 3 100"] # Last command to send to node before finishing
+}

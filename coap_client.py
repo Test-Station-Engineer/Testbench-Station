@@ -8,14 +8,18 @@ import time
 
 # resource = '/actuators/actuator1''
 # data = {'maxw':'713'}
-async def asyncPut(ip_address,resource,data):
+async def asyncPut(ip_address,resource,data,timeout = 5):
     protocol = await Context.create_client_context()
     uri = 'coap://'+ip_address+'/inx'+resource
     payload = dumps({'e':data})
     #request = Message(code=PUT, mtype=CON, payload=payload, uri=uri)
     request = Message(code=PUT, mtype=CON, payload=payload, uri=uri, content_format=ContentFormat.CBOR)
     try:
-        response = await protocol.request(request).response
+        # response = await protocol.request(request).response # Old, might replace with a asyncio.wait_for()
+        response = await asyncio.wait_for(protocol.request(request).response, timeout=timeout)
+        #print('Result: %s\n%r' % (response.code, response.payload))
+    except asyncio.TimeoutError:
+        print(f'Request timed out after {timeout} seconds')
     except Exception as e:
         print('Failed to fetch resource:')
         print(e)

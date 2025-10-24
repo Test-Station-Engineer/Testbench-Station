@@ -1,0 +1,34 @@
+{
+  "subnet": "192.168.3.255",
+  "cxode_version": "super v Dec 10 2024 13:27:26",
+  "update_db": true,
+
+  "trigger_1_test": true,
+  "chance_to_test_trigger_1": 10.0,
+  "number_of_trigger_1_attempts": 10.0,
+  "seconds_to_wait_for_restart": 8.0,
+
+  "maxw": 713,
+
+  "time_before_load": 0.5,
+  "hold_load_time": 3,
+
+  "loads": [
+    { "cccv": 0, "CV": 40, "dim": 100, "power": 45.0 },
+    { "cccv": 1, "CC": 5.0, "dim": 100, "power": 45.0 },
+    { "cccv": 2, "CC": 2.5, "dim": 100, "power": 45.0 },
+    { "cccv": 3, "CC": 2, "dim": 100, "power": 45.0 },
+    { "cccv": 4, "CC": 1.5, "dim": 100, "power": 45.0 }
+    ],
+
+  "pdline": true,
+  
+  "supernode_commission": [
+    { "sentype": "disable" },
+    { "eventlh": "default" },
+    { "eventhl": "default" }
+  ],
+  "maxw_commission": 100,
+  "append_to_file": true,
+  "cmd": ["set_dim 0 100"]
+}

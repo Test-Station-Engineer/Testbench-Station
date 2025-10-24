@@ -37,64 +37,129 @@ def putBcastINXIP(new_ip):
 
 subnet = ip_address
 serial_number = ''
-def scan(range_start=2,range_end=255):
+
+def scan(range_start=2, range_end=255):
     global ip_address_split, ip_address, nodes
     ip_address_split = subnet.split('.')
     ip_address_split[3] = str(range_start)
     ip_start = '.'.join(ip_address_split)
     ip_address_split[3] = str(range_end)
     ip_end = '.'.join(ip_address_split)
-    print('Scan range',ip_start,'to',ip_end)
+    print('Scan range', ip_start, 'to', ip_end)
+    
     if range_start < 2 or range_end > 255 or range_end <= range_start:
         print('Scan range error')
         return []
+    
     print('Start scan...')
     nodes = []
     start = time.time()
-    for i in range(range_start,range_end):
-    #for i in range(20,30):
-
+    
+    total = range_end - range_start
+    for idx, i in enumerate(range(range_start, range_end), start=1):
+        
         if keyboard.is_pressed('esc'):
             print("\nScan terminated by user.")
             return nodes
         
-        progress = '\r'+str(int(100*(i+1)/(range_end-range_start)))+'%'
-        print(progress,end='')
+        # fixed progress calculation
+        progress = '\r' + str(int(100 * idx / total)) + '%'
+        print(progress, end='', flush=True)
+        
         ip_address_split = subnet.split('.')
         ip_address_split[3] = str(i)
         test_ip_address = '.'.join(ip_address_split)
+        
         if test_ip_address != ip_address:
-            #print('scan',test_ip_address,end='')
-            data = coap_client.getUcast(test_ip_address,'/network',0.1)
+            data = coap_client.getUcast(test_ip_address, '/network', 0.1)
             if data:
-                #print(' SN',data['serialnum'],test_ip_address)
-                node = {'ip':test_ip_address,'network':data}
+                node = {'ip': test_ip_address, 'network': data}
                 if not is_mini_node:
-                    node['dfd']=coap_client.getUcast(test_ip_address,'/dfd',0.1)
-                    node['dfu']=coap_client.getUcast(test_ip_address,'/dfu',0.1)
-                    context = coap_client.getUcast(test_ip_address,'/actuators/actuator1/context',0.1)
+                    node['dfd'] = coap_client.getUcast(test_ip_address, '/dfd', 0.1)
+                    node['dfu'] = coap_client.getUcast(test_ip_address, '/dfu', 0.1)
+                    context = coap_client.getUcast(test_ip_address, '/actuators/actuator1/context', 0.1)
                     try:
                         if "keyw" in context:
-                            node['cluster']=context["keyw"][0]
+                            node['cluster'] = context["keyw"][0]
                         else:
-                            node['cluster']=''
+                            node['cluster'] = ''
                     except:
                         print("\nCONTEXT ERROR - UPDATING NODE DB")
-                        coap_client.putValue(test_ip_address,'/network','cmd','update_db')
+                        coap_client.putValue(test_ip_address, '/network', 'cmd', 'update_db')
+                
                 nodes.append(node)
+                
                 if scan_for_leading_digits:
                     if node['network']['serialnum'][:len(serial_number)] == serial_number:
                         break
                 if serial_number != '' and node['network']['serialnum'] == serial_number:
                     break
-            else:
-                #print(' not a node')
-                pass
+    
     print('\r100% ')
-    print('Scan found',len(nodes),'nodes')
-    elapsed = round(time.time() - start,1)
-    print('Scan complete in',elapsed,'s')
+    print('Scan found', len(nodes), 'nodes')
+    elapsed = round(time.time() - start, 1)
+    print('Scan complete in', elapsed, 's')
     return nodes
+
+
+# def scan(range_start=2,range_end=255):
+#     global ip_address_split, ip_address, nodes
+#     ip_address_split = subnet.split('.')
+#     ip_address_split[3] = str(range_start)
+#     ip_start = '.'.join(ip_address_split)
+#     ip_address_split[3] = str(range_end)
+#     ip_end = '.'.join(ip_address_split)
+#     print('Scan range',ip_start,'to',ip_end)
+#     if range_start < 2 or range_end > 255 or range_end <= range_start:
+#         print('Scan range error')
+#         return []
+#     print('Start scan...')
+#     nodes = []
+#     start = time.time()
+#     for i in range(range_start,range_end):
+#     #for i in range(20,30):
+
+#         if keyboard.is_pressed('esc'):
+#             print("\nScan terminated by user.")
+#             return nodes
+        
+#         progress = '\r'+str(int(100*(i+1)/(range_end-range_start)))+'%'
+#         print(progress,end='')
+#         ip_address_split = subnet.split('.')
+#         ip_address_split[3] = str(i)
+#         test_ip_address = '.'.join(ip_address_split)
+#         if test_ip_address != ip_address:
+#             #print('scan',test_ip_address,end='')
+#             data = coap_client.getUcast(test_ip_address,'/network',0.1)
+#             if data:
+#                 #print(' SN',data['serialnum'],test_ip_address)
+#                 node = {'ip':test_ip_address,'network':data}
+#                 if not is_mini_node:
+#                     node['dfd']=coap_client.getUcast(test_ip_address,'/dfd',0.1)
+#                     node['dfu']=coap_client.getUcast(test_ip_address,'/dfu',0.1)
+#                     context = coap_client.getUcast(test_ip_address,'/actuators/actuator1/context',0.1)
+#                     try:
+#                         if "keyw" in context:
+#                             node['cluster']=context["keyw"][0]
+#                         else:
+#                             node['cluster']=''
+#                     except:
+#                         print("\nCONTEXT ERROR - UPDATING NODE DB")
+#                         coap_client.putValue(test_ip_address,'/network','cmd','update_db')
+#                 nodes.append(node)
+#                 if scan_for_leading_digits:
+#                     if node['network']['serialnum'][:len(serial_number)] == serial_number:
+#                         break
+#                 if serial_number != '' and node['network']['serialnum'] == serial_number:
+#                     break
+#             else:
+#                 #print(' not a node')
+#                 pass
+#     print('\r100% ')
+#     print('Scan found',len(nodes),'nodes')
+#     elapsed = round(time.time() - start,1)
+#     print('Scan complete in',elapsed,'s')
+#     return nodes
 
 resource_keys = [
     ["SN","network","serialnum"],
@@ -141,4 +206,3 @@ def main(argv, arc):
 
 if __name__ == '__main__':
     main(sys.argv, len(sys.argv))
-

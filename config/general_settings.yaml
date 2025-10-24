@@ -1,0 +1,9 @@
+{
+  "subnet": "192.168.2.255", # Searches through this set of IPs (e.g. 192.168.3.255 will search 192.168.3.abc - 192.168.3.255)
+  "scan_start": 11,
+  "scan_end": 255,
+
+  "prompt_continue_key": 'DOWN', # Does nothing currently
+  "prompt_end_test_key": 'ENTER' # Does nothing currently
+  
+}
