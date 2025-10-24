@@ -10,6 +10,7 @@
     { "cccv": 2, "CC": 2.5, "dim": 100, "power": 56.0 },
     { "cccv": 3, "CC": 2.0, "dim": 100, "power": 66.0 },
     { "cccv": 4, "CC": 1.5, "dim": 100, "power": 66.0 },
+    { "cccv": 4, "CC": 1.5, "dim": 0, "below_power": 0.05 },
     { "cccv": 255, "dim": 100 }
   ],
   "sensor1": true,
