@@ -7,3 +7,5 @@ pyusb
 zeroconf
 psutil
 pyserial
+pyyaml
+keyboard
