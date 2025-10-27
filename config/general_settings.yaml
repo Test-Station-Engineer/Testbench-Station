@@ -1,12 +1,12 @@
 {
-  "subnet": "192.168.2.255", # Searches through this set of IPs (e.g. 192.168.3.255 will search 192.168.3.abc - 192.168.3.255)
-  "scan_start": 11,
-  "scan_end": 255,
+  "subnet": "192.168.3.255",      # Searches through this set of IPs (e.g. 192.168.3.255 will search 192.168.3.abc - 192.168.3.255)
+  "scan_start": 11,               # Host ID of an IP address to start scanning from. For example, a value of 11 will mean that it starts scanning from 192.168.2.11
+  "scan_end": 255,                # Host ID of an IP address to stop scanning from. 255 is the highest value this can be set to. 
 
-  "Load Machine COM": "COM4",
-  "Microcontroller COM": "COM3",
+  "Load Machine COM": "COM4",     # Does nothing currently, need to implement all of these. 
+  "Microcontroller COM": "COM3",  # Does nothing currently
 
-  "prompt_continue_key": 'DOWN', # Does nothing currently
-  "prompt_end_test_key": 'ENTER' # Does nothing currently
+  "prompt_continue_key": 'DOWN',  # Does nothing currently
+  "prompt_end_test_key": 'ENTER'  # Does nothing currently
   
 }
