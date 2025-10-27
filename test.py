@@ -59,9 +59,6 @@ supernode_test: bool = False
 # Battery Backup Settings
 battery_backup_test: bool = False
 
-# Commissioning 
-commissioning: bool = False
-
 # Allows testbench to look for a device with leading digits provided in an arguement and 
 # sets the serial number of that device to the serial number arguement
 set_sn: bool = False
@@ -337,17 +334,11 @@ def testCCCV(cccv):
 
 def testMAXW(maxw):
     global maxw_save
-    global commissioning
     maxw_save = maxw
-    commissioned = False
+
     coap_client.setMaxWatt(ip,0,maxw)
     if supernode_test:
         time.sleep(3.0)
-    
-    if "maxw_commission" in test_config and maxw == test_config['maxw_commission'] and commissioning:
-        time.sleep(3.0) # This is done to save the max watt information to EEPROM - Drew
-        commissioning = False # Will need to improve this later - Drew
-        commissioned = True
 
     maxw1 = coap_client.getValue(ip,'/actuators/actuator1','maxw')
     maxw2 = coap_client.getValue(ip,'/actuators/actuator2','maxw')
@@ -358,9 +349,6 @@ def testMAXW(maxw):
     if maxw2 != str(maxw):
         updateLog('testMAXW','fail actuator2',maxw2)
         return False
-    
-    if commissioned:  # Need to refine this later - Drew
-        updateLog('Max watt commissioned to',maxw1)
 
     return True
 
@@ -841,7 +829,6 @@ def commission(commission_settings):
 def runTest():
     global device
     global mac_address
-    global commissioning
     global battery_backup_test
     #global node_channels node_channnels unimplemented
     if 'trigger_1_test' in test_config and test_config['trigger_1_test']:
@@ -1050,16 +1037,13 @@ def runTest():
     
     if supernode_test:
         for i in range(1,9): coap_client.secure_setting(ip,f'/actuators/actuator{i}','fadetime',2000)
-    if 'supernode_commission' in test_config:
+    if 'supernode_commission' in test_config: # Need to remove this later and replace with a more general commission in the supernode YAML
         if snode.commission(test_config['supernode_commission']):
             updateState('runTest','pass - commission supernode', 'Pass','commission supernode')
         else:
             updateState('runTest','fail - commission supernode', 'Fail','commission supernode')
             if stop_on_failure: 
                 return False
-    if 'maxw_commission' in test_config:
-        commissioning = True
-        testMAXW(test_config['maxw_commission'])
     if 'cmd' in test_config:
         if testCMD(test_config['cmd']):
             updateState('runTest','pass - cmd','Pass','cmd')
