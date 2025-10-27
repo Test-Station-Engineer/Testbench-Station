@@ -18,7 +18,7 @@ loxads:
   - mini_cv: 24000
     mini_cc: 3000
     dim: 100
-    CR: 8.4           # Was / Should be 8, not 8.4. Doing this to speed it up.
+    CR: 8.4 # Was / Should be 8, not 8.4. Doing this to speed it up.
     power: 58.0
   - mini_cv: 40000
     mini_cc: 2000
@@ -45,25 +45,15 @@ append_to_file: true
 commission:
   toggle: 1
   settings:
-    - resource: "/drivers/0/actuator"
-      key: "pwm_mode"
-      value: "ALL_OFF"
-    - resource: "/drivers/0/actuator"
-      key: "cc"
-      value: 1000
-    - resource: "/drivers/0/actuator"
-      key: "cv"
-      value: 40000
-    - resource: "/drivers/0/actuator"
-      key: "cp"
-      value: 900
+    "/drivers/0/actuator":
+      pwm_mode: "ALL_OFF"
+      cc: 1000
+      cv: 40000
+      cp: 900
+      cluster: "group1"
 
-    - resource: "/drivers/0/actuator"
-      key: "cluster"
-      value: "group1"
-    - resource: "/drivers/0/wallswitch"
-      key: "cluster"
-      value: "group1"
-    - resource: "/drivers/0/sensor"
-      key: "cluster"
-      value: "group1"
+    "/drivers/0/wallswitch":
+      cluster: "group1"
+
+    "/drivers/0/sensor":
+      cluster: "group1"

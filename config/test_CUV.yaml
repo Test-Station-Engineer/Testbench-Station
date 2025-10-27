@@ -1,21 +1,34 @@
-{
-  "code_version": "2out v Jun  5 2025 09:30:32",
-  "update_db": false,
-  "maxw": 713,
-  "hold_time": 2,
-  "loads": [
-    { "cccv": 0, "CV": 40, "dim": 100, "power":60 },
-    { "cccv": 0, "CV": 40, "dim": 0, "below_power":0.05 },
-    { "cccv": 1, "CC": 3.3, "dim": 100, "power": 36.0 },
-    { "cccv": 2, "CC": 2.5, "dim": 100, "power": 56.0 },
-    { "cccv": 3, "CC": 2.0, "dim": 100, "power": 66.0 },
-    { "cccv": 4, "CC": 1.5, "dim": 100, "power": 66.0 },
-    { "cccv": 4, "CC": 1.5, "dim": 0, "below_power": 0.05 },
-    { "cccv": 255, "dim": 100 }
-  ],
-  "sensor1": true,
-  "pdline": true,
-  "maxw_commission": 100,
-  "append_to_file": true,
-  "cmd": ["set_dim 3 100"]
-}
+coxde_version: "2out v Jun 5 2025 09:30:32"
+update_db: false
+maxw: 713
+hold_load_time: 0
+
+loads:
+  - { cccv: 0, CV: 40, dim: 100, power: 60, }
+  - { cccv: 0, CV: 40, dim: 0, below_power: 0.05, time_before_load_on: 3.0 }
+  - { cccv: 1, CC: 3.3, dim: 100, power: 36.0 }
+  - { cccv: 2, CC: 2.5, dim: 100, power: 56.0 }
+  - { cccv: 3, CC: 2.0, dim: 100, power: 66.0 }
+  - { cccv: 4, CC: 1.5, dim: 100, power: 66.0 }
+  - { cccv: 4, CC: 1.5, dim: 0, below_power: 0.05, time_before_load_on: 3.0 }
+  - { cccv: 255, dim: 100 }
+
+sensor1: true
+pdline: true
+
+append_to_file: true
+
+commission:
+  toggle: 1
+  settings:
+    "/actuators":
+      cccv: "255"
+      pp: 100
+
+    "/drivers/0/wallswitch":
+      cluster: "group1"
+
+    "/drivers/0/sensor":
+      cluster: "group1"
+
+cmd: ["set_dim 3 100"]

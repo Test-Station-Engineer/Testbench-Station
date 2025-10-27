@@ -535,11 +535,13 @@ def testLoad(test_load):
 
             # SET OUTPUT ON AND MEASURE POWER
             # time.sleep(1.0)
-            if 'time_before_load_on' in test_config: time.sleep(test_config['time_before_load_on'])
+            if 'time_before_load_on' in test_load: time.sleep(test_load['time_before_load_on'])
+            elif 'time_before_load_on' in test_config: time.sleep(test_config['time_before_load_on'])
             # Sets load output on.
             if not usbc_node_test or not ran_once: load.setOutputOn(True)
 
-            if 'hold_load_time' in test_config: time.sleep(test_config['hold_load_time'])
+            if 'hold_load_time' in test_load: time.sleep(test_load['hold_load_time'])
+            elif 'hold_load_time' in test_config: time.sleep(test_config['hold_load_time'])
             time.sleep(1.0)
 
             # This is where power is checked
@@ -1175,7 +1177,7 @@ def checkCSV(arg):
 def checkArg(arg):
     return checkSkipDB(arg) or checkVerbose(arg) or checkCCCV(arg) or checkCustomDevice(arg) or checkSetSerialNumber(arg) or checkCSV(arg)
     
-###################
+###################    
 
 def write_to_csv(csv_file_name, sn_to_csv = None,mac_to_csv = None):
     
