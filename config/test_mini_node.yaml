@@ -8,7 +8,7 @@ gateway_version: '2.16.1'
 driver_version: '2.9.4'
 
 mini_cp: 900
-loxads:
+loads:
   - toggle: 1
   - mini_cv: 12000
     mini_cc: 3000
