@@ -782,46 +782,79 @@ def testBatteryBackup(batt_test_load):
 
     return True
 
-# def commission(commission_settings_list):
-#     for index,setting in enumerate(commission_settings_list):
-#         if index == 0: continue
-#         if 'resource' in setting: resource = setting['resource']
-#         else: print("No resource set for this setting")
-#         if 'key' in setting: key = setting['key']
-#         else: print("No key set for this setting")
-#         if 'value' in setting: value = setting['value']
-#         else: print("No value set for this setting")
+# def commission(commission_settings):
 
-#         if not coap_client.secure_setting(ip,resource,key,value,True): return False
-#     return True
+#     settings_list = commission_settings.get("settings", [])
+#     success = True  # track overall success
+    
+#     for setting in settings_list:
+#         resource = setting.get("resource")
+#         key = setting.get("key")
+#         value = setting.get("value")
+
+#         if not resource:
+#             print("No resource set for this setting")
+#             success = False
+#             continue
+#         if not key:
+#             print("No key set for this setting")
+#             success = False
+#             continue
+#         if value is None:
+#             print("No value set for this setting")
+#             success = False
+#             continue
+
+#         # Apply the setting
+#         if not coap_client.secure_setting(ip, resource, key, value, True):
+#             print(f"Failed to apply {key}={value} on {resource}")
+#             success = False
+
+#     return success
 
 def commission(commission_settings):
+    settings = commission_settings.get("settings", {})
+    success = True
 
-    settings_list = commission_settings.get("settings", [])
-    success = True  # track overall success
-    
-    for setting in settings_list:
-        resource = setting.get("resource")
-        key = setting.get("key")
-        value = setting.get("value")
-
+    for resource, kv_pairs in settings.items():
         if not resource:
             print("No resource set for this setting")
             success = False
             continue
-        if not key:
-            print("No key set for this setting")
-            success = False
-            continue
-        if value is None:
-            print("No value set for this setting")
-            success = False
-            continue
 
-        # Apply the setting
-        if not coap_client.secure_setting(ip, resource, key, value, True):
-            print(f"Failed to apply {key}={value} on {resource}")
-            success = False
+        if resource == "/actuators/ALL":
+            print(f"Applying settings to all {node_channels} actuator channels")
+            for channel in range(1,node_channels+1): # FIND THIS VARIABLE IN THE INITIALIZATION SECTION WHERE CHANNELS ARE DEFINED BY NODE TYPE 
+                resource_channel = resource.replace("ALL",f"actuator{str(channel)}")
+                for key, value in kv_pairs.items():
+                    if key is None:
+                        print(f"No key set for resource {resource_channel}")
+                        success = False
+                        continue
+                    if value is None:
+                        print(f"No value set for key {key} on {resource_channel}")
+                        success = False
+                        continue
+
+                    # Apply the setting
+                    if not coap_client.secure_setting(ip, resource_channel, key, value, True):
+                        print(f"Failed to apply {key}={value} on {resource_channel}")
+                        success = False
+        else:
+            for key, value in kv_pairs.items():
+                if key is None:
+                    print(f"No key set for resource {resource}")
+                    success = False
+                    continue
+                if value is None:
+                    print(f"No value set for key {key} on {resource}")
+                    success = False
+                    continue
+
+                # Apply the setting
+                if not coap_client.secure_setting(ip, resource, key, value, True):
+                    print(f"Failed to apply {key}={value} on {resource}")
+                    success = False
 
     return success
 

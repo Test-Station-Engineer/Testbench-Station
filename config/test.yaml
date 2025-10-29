@@ -21,24 +21,13 @@ sensor1: true                         # Toggle for sensor test
 pdline: true                          # Toggle for wallswitch test
 append_to_file: true                  # csv file name/toggle. If it's a string, it assumes true and sets the name equal to string. If just true, it uses the date as the file name. If false, disables it.
 
-# Commission Settings
-maxw_commission: 180                  # Sets device to this max watt after testing
-cmd:
-  - "set_dim 3 100"                   # Last command to send to node before finishing
-
 commission:
   toggle: 1
   settings:
-    - resource: "/actuators/actuator1" 
-      key: "maxw"
-      value: "100"
-    - resource: "/actuators/actuator2"
-      key: "maxw"
-      value: "100"
+    "/actuators/ALL":
+      cccv: "255"
+      maxw: "100"
+      pp: 100
 
-    - resource: "/actuators/actuator1"
-      key: "pp"
-      value: 100
-    - resource: "/actuators/actuator2"
-      key: "pp"
-      value: 100
+# cmd:
+#   - "set_dim 3 100"                   # Last command to send to node before finishing
