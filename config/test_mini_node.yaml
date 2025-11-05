@@ -1,7 +1,7 @@
  # Checks for version match
 hold_load_time: 4  # How long the load stays active when on
-http_server: "http://192.168.1.169:8081/firmware"
-http_port: "8081"
+http_server: "http://192.168.1.169:8080/firmware"
+http_port: "8080"
 remote_drivers: false
 
 gateway_version: '2.16.1'
@@ -39,31 +39,20 @@ rgbw: [4278190080, 16711680, 65280, 255, 4294967295] # [red,green,blue,white,all
 sensor1: true
 pdline: true
 firmware_upgrade: false
-append_to_file: true
 
 # Commission Settings
 commission:
   toggle: 1
   settings:
-    - resource: "/drivers/0/actuator"
-      key: "pwm_mode"
-      value: "ALL_OFF"
-    - resource: "/drivers/0/actuator"
-      key: "cc"
-      value: 1000
-    - resource: "/drivers/0/actuator"
-      key: "cv"
-      value: 40000
-    - resource: "/drivers/0/actuator"
-      key: "cp"
-      value: 900
+    "/drivers/0/actuator":
+      pwm_mode: "ALL_OFF"
+      cc: 1000
+      cv: 40000
+      cp: 900
+      cluster: "group1"
+    "/drivers/0/wallswitch":
+      cluster: "group1"
+    "/drivers/0/sensor":
+      cluster: "group1"
 
-    - resource: "/drivers/0/actuator"
-      key: "cluster"
-      value: "group1"
-    - resource: "/drivers/0/wallswitch"
-      key: "cluster"
-      value: "group1"
-    - resource: "/drivers/0/sensor"
-      key: "cluster"
-      value: "group1"
+append_to_file: true

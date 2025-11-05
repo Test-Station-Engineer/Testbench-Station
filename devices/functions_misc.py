@@ -37,13 +37,14 @@ def send_test_prompt(keyboard_key = key, prompt: str = f'Press {key_string} to c
         "enter": keyboard.Key.enter,
         "space": keyboard.Key.space,
         "down": keyboard.Key.down,
-        "right": keyboard.Key.right
+        "right": keyboard.Key.right,
+        "esc": keyboard.Key.esc
         # Add other keys as needed
     }
 
     if len(str(keyboard_key)) > 1:
         if keyboard_key not in keyboard.Key:
-            json_key_match = json_key_mapping.get(keyboard_key)
+            json_key_match = json_key_mapping.get(keyboard_key.lower())
             if json_key_match is None:
                 print(f"\nKey '{keyboard_key}' does not exist in keyboard.Key.")
                 print('\nKeyboard key is set to',keyboard_key)
@@ -81,3 +82,10 @@ def send_test_prompt(keyboard_key = key, prompt: str = f'Press {key_string} to c
     else:
         print("\nEscape was pressed. Process ended.")
         sys.exit()
+
+def check_toggle(test_settings: dict):
+    if 'toggle' not in test_settings: 
+        return True
+    elif test_settings['toggle'] == 0: 
+        return False
+    return True

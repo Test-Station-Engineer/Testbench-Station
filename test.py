@@ -4,7 +4,7 @@
 import controller
 import coap_client
 import load
-import database
+import defunct.database as database
 import yaml
 import time
 import sys
@@ -118,10 +118,37 @@ def load_settings():
     folder_path = "config"
     file_name = os.path.join(folder_path, "general_settings.yaml")
     general_settings_config = load_yaml(file_name)
-    if general_settings_config is not None: return True
-    else: 
+    if general_settings_config is None: 
         print("General Settings wasn't loaded. Please troubleshoot.")
         return False
+    else: 
+        pass
+    if 'prompt_continue_key' in general_settings_config:
+        global prompt_continue_key
+        prompt_continue_key = general_settings_config['prompt_continue_key']
+    if 'prompt_end_test_key' in general_settings_config:
+        global prompt_end_test_key
+        prompt_end_test_key = general_settings_config['prompt_end_test_key']
+    if 'Load Machine COM' in general_settings_config:
+        COM_port = general_settings_config['Load Machine COM']
+        if isinstance(COM_port, str):
+            # Keep only digits and join them into one string
+            num_str = ''.join(ch for ch in COM_port if ch.isdigit())
+            COM_port = int(num_str)
+        else:
+            COM_port = int(COM_port)
+
+        print(COM_port)
+        load.res_els.append(f'ASRL{COM_port}::INSTR')
+        return True
+    # if 'Microcontroller COM' in general_settings_config:
+    #     COM_port = general_settings_config['Microcontroller COM']
+    #     if isinstance(COM_port, str):
+    #         if 'COM' in COM_port:
+    #             num_str = ''.join(ch for ch in COM_port if ch.isdigit())
+    #             COM_port = int(num_str)
+            
+    
 
 def load_test_config():
     global device, test_config
@@ -448,6 +475,10 @@ def testLoad(test_load):
         if test_load['cccv'] != cccv_save:
             if testCCCV(test_load['cccv']):
                 updateLog('testCCCV','pass',test_load['cccv'])
+    if 'cuv' in test_load:
+        if test_load['cuv'] != cccv_save:
+            if coap_client.secure_setting(ip,'/actuators/actuator1','cuv',str(test_load['cuv'])) and coap_client.secure_setting(ip,'/actuators/actuator2','cuv',str(test_load['cuv'])):
+                updateLog('testCUV','pass',test_load['cuv'])
     if 'maxw' in test_load:
         if test_load['maxw'] != maxw_save:
             if testMAXW(test_load['maxw']):
@@ -782,36 +813,6 @@ def testBatteryBackup(batt_test_load):
 
     return True
 
-# def commission(commission_settings):
-
-#     settings_list = commission_settings.get("settings", [])
-#     success = True  # track overall success
-    
-#     for setting in settings_list:
-#         resource = setting.get("resource")
-#         key = setting.get("key")
-#         value = setting.get("value")
-
-#         if not resource:
-#             print("No resource set for this setting")
-#             success = False
-#             continue
-#         if not key:
-#             print("No key set for this setting")
-#             success = False
-#             continue
-#         if value is None:
-#             print("No value set for this setting")
-#             success = False
-#             continue
-
-#         # Apply the setting
-#         if not coap_client.secure_setting(ip, resource, key, value, True):
-#             print(f"Failed to apply {key}={value} on {resource}")
-#             success = False
-
-#     return success
-
 def commission(commission_settings):
     settings = commission_settings.get("settings", {})
     success = True
@@ -863,7 +864,8 @@ def runTest():
     global device
     global mac_address
     global battery_backup_test
-    #global node_channels node_channnels unimplemented
+    global node_channels
+
     if 'trigger_1_test' in test_config and test_config['trigger_1_test']:
         if 'chance_to_test_trigger_1' in test_config:
             chance = test_config['chance_to_test_trigger_1']
@@ -886,6 +888,7 @@ def runTest():
         updateLog('SN: ',sn, 'MAC: ',mac_address)
 
     if mini_node_test: 
+        node_channels = 1
         mnode.init(ip,test_config,serial_number)
         print("Initializing Mini Node Test")
 
@@ -903,6 +906,7 @@ def runTest():
         print("Initializing battery backup test")
 
     elif supernode_test:
+        node_channels = 8
         print("Initializing supernode test")
         snode.init(ip,test_config)
         #device = 'Supernode'
@@ -996,21 +1000,34 @@ def runTest():
             updateState('runTest','fail - maxw','Fail','maxw')
             if stop_on_failure:
                 return False
-    if 'load' in test_config:
-        if testLoad(test_config['load']):
-            updateState('runTest','pass - load','Pass','load')
+    if 'load' in test_config: # Fix later for toggle 0
+        load_settings = test_config['load']
+        if misc.check_toggle(load_settings):
+            print("Starting Load Test")
+            if testLoad(load_settings):
+                updateState('runTest','pass - load','Pass','load')
+            else:
+                updateState('runTest','fail - load','Fail','load')
+                if stop_on_failure:
+                    return False
         else:
-            updateState('runTest','fail - load','Fail','load')
-            if stop_on_failure:
-                return False
+            print("LOAD TEST TOGGLE IS SET TO OFF (0). SKIPPING LOAD TEST.")
+            updateState('runTest','skip - load','Skip','load')
+
     if 'loads' in test_config:
-        #print("starting loads test")
-        if testLoads(test_config['loads']):
-            updateState('runTest','pass - loads','Pass','loads')
+        loads_settings = test_config['loads']
+        if misc.check_toggle(loads_settings):
+            print("Starting Loads Test")
+            if testLoads(loads_settings['test_steps']):
+                updateState('runTest','pass - loads','Pass','loads')
+            else:
+                updateState('runTest','fail - loads','Fail','loads')
+                if stop_on_failure:
+                    return False
         else:
-            updateState('runTest','fail - loads','Fail','loads')
-            if stop_on_failure:
-                return False
+            print("LOADS TEST TOGGLE IS SET TO OFF (0). SKIPPING LOADS TEST.")
+            updateState('runTest','skip - loads','Skip','loads')
+
     if 'rgbw' in test_config:
         if not isinstance(test_config['rgbw'], list) or not all(isinstance(x, int) for x in test_config['rgbw']):
             print("RGBW Sets in test_config must be formatted as a list of ints. Proceeding with default values.")

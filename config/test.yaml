@@ -13,6 +13,7 @@ maxw: 713                             # Sets max watt for load test
 hold_load_time: 2.5                   # Determines how long the load will be kept on for
 
 load:
+  toggle: 1
   CV: 40
   dim: 100
   power: 60
@@ -25,7 +26,7 @@ commission:
   toggle: 1
   settings:
     "/actuators/ALL":
-      cccv: "255"
+      cccv: "1"
       maxw: "100"
       pp: 100
 

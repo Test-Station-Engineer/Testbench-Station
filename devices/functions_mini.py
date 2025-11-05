@@ -48,7 +48,7 @@ def init(ip_address,test_configuration, serialnum):
     if 'firmware_upgrade' in test_yaml and test_yaml['firmware_upgrade']:
         if "http_server" in test_yaml: 
             http_server = test_yaml["http_server"]
-            if "http_port" in test_yaml: http_server = f"http://192.168.1.94:{test_yaml["http_port"]}/firmware"
+            if "http_port" in test_yaml: http_server = f"http://192.168.2.47:{test_yaml["http_port"]}/firmware"
         print("http-server is:",http_server)
     if 'remote_drivers' in test_yaml:
         if test_yaml['remote_drivers'] == False or test_yaml['remote_drivers'] == 0: remote_driver_exists = False
