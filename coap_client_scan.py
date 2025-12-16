@@ -38,7 +38,7 @@ def putBcastINXIP(new_ip):
 subnet = ip_address
 serial_number = ''
 
-def scan(range_start=2, range_end=255):
+def scan(range_start=2, range_end=255, scan_timeout=0.1):
     global ip_address_split, ip_address, nodes
     ip_address_split = subnet.split('.')
     ip_address_split[3] = str(range_start)
@@ -59,7 +59,7 @@ def scan(range_start=2, range_end=255):
     for idx, i in enumerate(range(range_start, range_end), start=1):
         
         if keyboard.is_pressed('esc'):
-            print("\nScan terminated by user.")
+            print("\nSCAN TERMINATED BY USER.")
             return nodes
         
         # fixed progress calculation
@@ -71,13 +71,13 @@ def scan(range_start=2, range_end=255):
         test_ip_address = '.'.join(ip_address_split)
         
         if test_ip_address != ip_address:
-            data = coap_client.getUcast(test_ip_address, '/network', 0.1)
+            data = coap_client.getUcast(test_ip_address, '/network', scan_timeout)
             if data:
                 node = {'ip': test_ip_address, 'network': data}
                 if not is_mini_node:
-                    node['dfd'] = coap_client.getUcast(test_ip_address, '/dfd', 0.1)
-                    node['dfu'] = coap_client.getUcast(test_ip_address, '/dfu', 0.1)
-                    context = coap_client.getUcast(test_ip_address, '/actuators/actuator1/context', 0.1)
+                    node['dfd'] = coap_client.getUcast(test_ip_address, '/dfd', scan_timeout)
+                    node['dfu'] = coap_client.getUcast(test_ip_address, '/dfu', scan_timeout)
+                    context = coap_client.getUcast(test_ip_address, '/actuators/actuator1/context', scan_timeout)
                     try:
                         if "keyw" in context:
                             node['cluster'] = context["keyw"][0]

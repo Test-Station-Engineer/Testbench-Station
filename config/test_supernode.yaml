@@ -1,34 +1,49 @@
-{
-  "subnet": "192.168.3.255",
-  "cxode_version": "super v Dec 10 2024 13:27:26",
-  "update_db": true,
+cxode_version: "super v Dec 10 2024 13:27:26"
 
-  "trigger_1_test": true,
-  "chance_to_test_trigger_1": 10.0,
-  "number_of_trigger_1_attempts": 10.0,
-  "seconds_to_wait_for_restart": 8.0,
+# Trigger 1 Settings
+trigger_1_test: true
+chance_to_test_trigger_1: 10.0
+number_of_trigger_1_attempts: 1.0
+seconds_to_wait_for_restart: 8.0
 
-  "maxw": 713,
+# Update Database
+update_db: true
 
-  "time_before_load": 0.5,
-  "hold_load_time": 3,
+# Set max watt and load time for load test.
+maxw: 713
+time_before_load: 0.5
+hold_load_time: 3
 
-  "loads": [
-    { "cccv": 0, "CV": 40, "dim": 100, "power": 45.0 },
-    { "cccv": 1, "CC": 5.0, "dim": 100, "power": 45.0 },
-    { "cccv": 2, "CC": 2.5, "dim": 100, "power": 45.0 },
-    { "cccv": 3, "CC": 2, "dim": 100, "power": 45.0 },
-    { "cccv": 4, "CC": 1.5, "dim": 100, "power": 45.0 }
-    ],
+# Loads Test
+loads:
+  toggle: 1
+  test_steps:
+    - { cccv: 0, CV: 40, dim: 100, power: 45.0 }    # Ideal CV: 40
+    - { cccv: 1, CC: 5, dim: 100, power: 45.0 }     # Ideal CC: 5
+    - { cccv: 2, CC: 2.5, dim: 100, power: 45.0 }   # Ideal CC: 2.5
+    - { cccv: 3, CC: 2, dim: 100, power: 45.0 }     # Ideal CC: 2
+    - { cccv: 4, CC: 1.5, dim: 100, power: 45.0 }   # Ideal CC: 1.5
 
-  "pdline": true,
-  
-  "supernode_commission": [
-    { "sentype": "disable" },
-    { "eventlh": "default" },
-    { "eventhl": "default" }
-  ],
-  "maxw_commission": 100,
-  "append_to_file": true,
-  "cmd": ["set_dim 0 100"]
-}
+pdline: 1
+
+dc_in: 1
+
+commission:
+  toggle: 1
+  verbose: false
+  settings:
+    "/actuators/ALL":
+      maxw: "100"
+      fadetime: 2000
+    "/sensors/ALL":
+      sentype: "disable"
+      eventlh: "default"
+      eventhl: "default"
+    "/network":
+      lldp_enable: "false"
+
+
+append_to_file: true
+
+cmd:
+  - "set_dim 0 100"

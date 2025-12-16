@@ -44,7 +44,7 @@ cccv_save = None
 
 CC_yaml: bool = False
 CV_yaml: bool = False
-CUV_yaml: bool = False
+CCUV_yaml: bool = False
 
 # CUSTOM DEVICE SETTINGS
 # Mini Node Settings
@@ -68,6 +68,7 @@ device: str = ''
 node_channels: int = 2 # How many channels for a node. 2 by default
 
 general_settings_config = None
+scan_timeout = 0.1
 scan_range_start = 2
 scan_range_end = 255
 test_config = None
@@ -113,7 +114,7 @@ def load_yaml(file_path):
         print(f"An unexpected error occurred: {e}")
     return None
 
-def load_settings():
+def parse_general_settings():
     global general_settings_config
     folder_path = "config"
     file_name = os.path.join(folder_path, "general_settings.yaml")
@@ -123,6 +124,7 @@ def load_settings():
         return False
     else: 
         pass
+
     if 'prompt_continue_key' in general_settings_config:
         global prompt_continue_key
         prompt_continue_key = general_settings_config['prompt_continue_key']
@@ -162,9 +164,9 @@ def load_test_config():
     elif CC_yaml:
         file_name = os.path.join(folder_path, "test_CC.yaml")
         device = "CC-0-10"
-    elif CUV_yaml:
-        device = 'CUV'
-        file_name = os.path.join(folder_path, 'test_CUV.yaml')
+    elif CCUV_yaml:
+        device = 'CCUV'
+        file_name = os.path.join(folder_path, 'test_CCUV.yaml')
     elif mini_node_test:
         file_name = os.path.join(folder_path, 'test_mini_node.yaml')
     elif battery_backup_test:
@@ -192,12 +194,13 @@ def load_test_config():
 
 ip = ''
 def getIP():
-    global ip, scan_range_start, scan_range_end
+    global ip, scan_timeout, scan_range_start, scan_range_end
     updateLog('getIP','start')
     if mini_node_test: coap_client_scan.is_mini_node = True
     if scan_sn:
         if 'subnet' in general_settings_config: 
             coap_client_scan.subnet = general_settings_config['subnet']
+            if 'scan_timeout' in general_settings_config: scan_timeout = general_settings_config['scan_timeout']
             if 'scan_start' in general_settings_config: scan_range_start = general_settings_config['scan_start']
             if 'scan_end' in general_settings_config: scan_range_end = general_settings_config['scan_end']
         else:
@@ -213,7 +216,7 @@ def getIP():
         else: 
             print('scan subnet',coap_client_scan.subnet,'for sn',serial_number)
             coap_client_scan.serial_number = serial_number
-            coap_client_scan.scan(scan_range_start,scan_range_end)
+            coap_client_scan.scan(scan_range_start,scan_range_end,scan_timeout)
             #coap_client_scan.scan()
         for node in coap_client_scan.nodes:
             print(node['ip'],node['network']['serialnum'])
@@ -398,6 +401,67 @@ def setMux(channel: int, verbose: bool = True, delay:float = 0.25):
         count+=1
         time.sleep(delay)
 
+def power_check(power_to_check_against: float, relay: int, turn_off_load_after: bool = True, reverse_power_thresh: bool = False):
+    """Measures power once, then if it is below expected, it will wait and measure again.
+    \nIf it's still inadequate, it will pause and await user input.
+    \nIf still inadequate, it will fail and turn load machine off, if input var is true."""
+    try:
+        power = load.measurePower()
+    except load.visa.errors.VisaIOError as e:
+        print(f"Load-01 Visa IO Timeout Error: {e}")
+        # misc.updateLog('testLoad',relay,'VISA IO Fail', e)
+        return False
+    except Exception as e:
+        print(f"Unexpected error during power check: {e}")
+        return False
+
+    # If power to check against is less than power measured, wait, then measure again. Then await the user to measure a third time
+    if reverse_power_thresh: test_value = power_to_check_against - power
+    # If power measured is less than power required, wait, then measure again. Then await the user to measure a third time
+    else: test_value = power - power_to_check_against
+
+    #if power < test_load['power']: 
+    if test_value < 0:
+        if reverse_power_thresh: print(f"Failed initial power test at {power} watts. Expected at most {power_to_check_against} watts. Awaiting new measurement...")
+        else: print(f"Failed initial power test at {power} watts. Expected at least {power_to_check_against} watts. Awaiting new measurement...")
+
+        time.sleep(3.0)
+        power = load.measurePower()
+
+        # Second Power Check
+        # If power to check against is less than power measured, wait, then measure again. Then await the user to measure a third time
+        if reverse_power_thresh: test_value = power_to_check_against - power
+        # If power measured is less than power required, wait, then measure again. Then await the user to measure a third time
+        else: test_value = power - power_to_check_against
+
+        #if power < test_load['power']: 
+        if test_value < 0:
+            misc.send_test_prompt(misc.key,f"TEST STATION PAUSED. PRESS {misc.key} TO CONTINUE.","CONTINUING TEST...")
+            power = load.measurePower()
+
+        # Sets load output off
+        load.setOutputOn(False)
+
+        # if power is less than required, fail it. Else, pass it
+        if reverse_power_thresh: 
+            test_value = power_to_check_against - power
+            #print("power_to_check_against - power_measured =",power)
+
+        else: 
+            test_value = power - power_to_check_against
+            #print("power_measured - power_to_check_against =",power)
+                
+        #if power < test_load['power']: 
+        if test_value < 0:
+            misc.updateLog('testLoad',relay,'fail power',power)
+            return False
+        else: 
+            misc.updateLog('testLoad',relay,'pass power',power)
+            return True
+    misc.updateLog('testLoad',relay,'pass power',power)
+    if turn_off_load_after: load.setOutputOn(False)
+    return True
+
 def testLoad(test_load):
     ran_once : bool = False
 
@@ -416,61 +480,6 @@ def testLoad(test_load):
         print(f"WARNING: LOAD {test_load} HAS NO POWER THRESHOLD LISTED")
         pass
 
-    # Internal function to measure power
-    def power_check(power_to_check_against: float, turn_off_load_after: bool = True, reverse_power_thresh: bool = False):
-        """Measures power once, then if it is below expected, it will wait and measure again.
-        \nIf it's still inadequate, it will pause and await user input.
-        \nIf still inadequate, it will fail and turn load machine off, if input var is true."""
-        
-        power = load.measurePower()
-
-        # If power to check against is less than power measured, wait, then measure again. Then await the user to measure a third time
-        if reverse_power_thresh: test_value = power_to_check_against - power
-        # If power measured is less than power required, wait, then measure again. Then await the user to measure a third time
-        else: test_value = power - power_to_check_against
-
-        #if power < test_load['power']: 
-        if test_value < 0:
-            if reverse_power_thresh: print(f"Failed initial power test at {power} watts. Expected at most {power_to_check_against} watts. Awaiting new measurement...")
-            else: print(f"Failed initial power test at {power} watts. Expected at least {power_to_check_against} watts. Awaiting new measurement...")
-
-            time.sleep(3.0)
-            power = load.measurePower()
-
-            # Second Power Check
-            # If power to check against is less than power measured, wait, then measure again. Then await the user to measure a third time
-            if reverse_power_thresh: test_value = power_to_check_against - power
-            # If power measured is less than power required, wait, then measure again. Then await the user to measure a third time
-            else: test_value = power - power_to_check_against
-
-            #if power < test_load['power']: 
-            if test_value < 0:
-                misc.send_test_prompt(misc.key,f"TEST STATION PAUSED. PRESS {misc.key} TO CONTINUE.","CONTINUING TEST...")
-                power = load.measurePower()
-
-            # Sets load output off
-            load.setOutputOn(False)
-
-            # if power is less than required, fail it. Else, pass it
-            if reverse_power_thresh: 
-                test_value = power_to_check_against - power
-                #print("power_to_check_against - power_measured =",power)
-
-            else: 
-                test_value = power - power_to_check_against
-                #print("power_measured - power_to_check_against =",power)
-                
-            #if power < test_load['power']: 
-            if test_value < 0:
-                misc.updateLog('testLoad',relay,'fail power',power)
-                return False
-            else: 
-                misc.updateLog('testLoad',relay,'pass power',power)
-                return True
-        misc.updateLog('testLoad',relay,'pass power',power)
-        if turn_off_load_after: load.setOutputOn(False)
-        return True
-
     if 'cccv' in test_load:
         if test_load['cccv'] != cccv_save:
             if testCCCV(test_load['cccv']):
@@ -483,6 +492,11 @@ def testLoad(test_load):
         if test_load['maxw'] != maxw_save:
             if testMAXW(test_load['maxw']):
                 updateLog('testMAXW','pass',test_load['maxw'])
+    if 'turn_off_load_after' in test_load:
+        print("turn_off_load_after found in test load:",test_load['turn_off_load_after'])
+        if test_load['turn_off_load_after'] == False or test_load['turn_off_load_after'] == 0:
+            turn_load_off_after = False
+    else: turn_load_off_after = True
 
     if mini_node_test:
         if not ran_once: print("Starting Mini Node Load test")
@@ -557,18 +571,22 @@ def testLoad(test_load):
             if 'time_before_load_on' in test_load: time.sleep(test_load['time_before_load_on'])
             elif 'time_before_load_on' in test_config: time.sleep(test_config['time_before_load_on'])
             # Sets load output on.
-            if not usbc_node_test or not ran_once: load.setOutputOn(True)
+            if not usbc_node_test or not ran_once: load.setOutputOn(True)  
 
             if 'hold_load_time' in test_load: time.sleep(test_load['hold_load_time'])
+            elif 'loads' in test_config and 'hold_load_time' in test_config['loads']: 
+                loads_setting = test_config['loads']
+                time.sleep(loads_setting['hold_load_time'])
             elif 'hold_load_time' in test_config: time.sleep(test_config['hold_load_time'])
             time.sleep(1.0)
 
             # This is where power is checked
-            if invert_power_thresh: power_check(power_threshold,turn_load_off_after, invert_power_thresh)
-            else: power_check(power_threshold,turn_load_off_after)
-
+            if invert_power_thresh: power_check(power_threshold,relay,turn_load_off_after, invert_power_thresh)
+                #if not power_check(power_threshold,relay,turn_load_off_after, invert_power_thresh): return False
+            else: power_check(power_threshold,relay,turn_load_off_after)
+                #if not power_check(power_threshold,relay,turn_load_off_after): return False
+                
             ran_once = True
-
         return True
     
     if supernode_test: load.setOutputOn(False)
@@ -585,15 +603,19 @@ def testLoads(test_loads):
         if not mnode.loads_test(test_loads): return False
         return True
     
-    elif usbc_node_test: 
-        load.setOutputOn(True)
-        usbc_channels = ['output1','output2']
-        for index,channel in enumerate(usbc_channels): # usbc_channels defined as a global variable. Should be 2 channels until we make USBC supernodes
-            usbc_current_channel = usbc_channels[index]
-            print(usbc_current_channel)
-            controller.setRelays(channel)
-            for index,test_load in enumerate(test_loads):
-                if not testLoad(test_load): test_pass = False
+    if usbc_node_test:
+        if USBC_test_loads(test_loads): return True
+        else: return False
+    
+    # elif usbc_node_test: 
+    #     load.setOutputOn(True)
+    #     usbc_channels = ['output1','output2']
+    #     for index,channel in enumerate(usbc_channels): # usbc_channels defined as a global variable. Should be 2 channels until we make USBC supernodes
+    #         usbc_current_channel = usbc_channels[index]
+    #         print(usbc_current_channel)
+    #         controller.setRelays(channel)
+    #         for index,test_load in enumerate(test_loads):
+    #             if not testLoad(test_load): test_pass = False
     
     else:
         for index,test_load in enumerate(test_loads):
@@ -610,9 +632,9 @@ def testLoads(test_loads):
 
 # clean up function before return
 def returnTestSensor1(ret):
-    if not mini_node_test: coap_client.putValue(ip,'/sensors/sensor1','eventrisefall','mot,vac') # reset sensor 1 events
-    if not supernode_test: coap_client.putValue(ip,'/actuators/actuator1','motdsbl','3') # disable motion
-    else: coap_client.putValue(ip,'/actuators/actuator1','motdsbl','0') # disable motion (supernode)
+    if not mini_node_test: coap_client.secure_setting(ip,'/sensors/sensor1','eventrisefall','mot,vac') # reset sensor 1 events
+    if not supernode_test: coap_client.secure_setting(ip,'/actuators/actuator1','motdsbl','3') # disable motion
+    else: coap_client.secure_setting(ip,'/actuators/actuator1','motdsbl','0') # disable motion (supernode)
     return ret
 
 def testSensor1(do_test):
@@ -651,6 +673,9 @@ def testSensor1(do_test):
         updateLog('testSensor1','high',2,'fail set dim',dim2)
         return returnTestSensor1(False)
     else: updateLog('testSensor1','high','pass set dim', dim2)
+
+    time.sleep(2.0)
+
     controller.setAux(1,False,'') # set Aux1 low, test falling edge of sensor1
     time.sleep(1.0) # wait for  event
     dim1 = coap_client.getDim(ip,1) # dim1 should be 0%
@@ -791,6 +816,109 @@ def testBatteryLoad(upper_load,lower_load,key,wait_time):
     print("Remember to unplug pink battery backup connectors when finished testing.")
     return True
 
+def USBC_test_loads(test_loads):
+
+    def USBC_test_load(test_load):
+        ran_once : bool = False
+
+        power_threshold: float = 0.0        # Comes from test parameters, power measured checks against this value
+        turn_load_off_after: bool = True    # Whether or not to turn load machine off after a measurement is finalized
+        invert_power_thresh: bool = False   # Used when checking if power is BELOW or equal to the threshold power instead of GREATER than or equal to it
+
+        # Checks to see how power threshold should be compared to power measured
+        if 'below_power' in test_load:
+            invert_power_thresh = True
+            power_threshold = float(test_load['below_power'])
+        elif 'power' in test_load: 
+            invert_power_thresh = False
+            power_threshold = float(test_load['power'])
+        else: 
+            print(f"WARNING: LOAD {test_load} HAS NO POWER THRESHOLD LISTED")
+            pass
+
+        if 'cccv' in test_load:
+            if test_load['cccv'] != cccv_save:
+                if testCCCV(test_load['cccv']):
+                    updateLog('testCCCV','pass',test_load['cccv'])
+        if 'cuv' in test_load:
+            if test_load['cuv'] != cccv_save:
+                if coap_client.secure_setting(ip,'/actuators/actuator1','cuv',str(test_load['cuv'])) and coap_client.secure_setting(ip,'/actuators/actuator2','cuv',str(test_load['cuv'])):
+                    updateLog('testCUV','pass',test_load['cuv'])
+        if 'maxw' in test_load:
+            if test_load['maxw'] != maxw_save:
+                if testMAXW(test_load['maxw']):
+                    updateLog('testMAXW','pass',test_load['maxw'])
+        if 'turn_off_load_after' in test_load:
+            if test_load['turn_off_load_after'] == False or test_load['turn_off_load_after'] == 0:
+                turn_load_off_after = False
+        else: turn_load_off_after = True
+
+        dim: int = 100
+        if 'dim' in test_load: dim = test_load['dim']
+
+        # print("Load Dim is",dim)
+        #coap_client.setDim(ip,3,100)
+        time.sleep(1.0)
+        coap_client.setDim(ip,3,dim)
+
+        # MIGHT NEED TO LOOK BACK AT PUTTING THIS IN IF DIM PROBLEMS PERSIST
+
+        time.sleep(0.5)
+
+        # SET RELAYS
+        relays = [usbc_current_channel] # usbc_current_channel is set in the test_loads function
+        #print(relays)
+
+        for relay in relays:
+
+            controller.setRelays(relay)
+
+            if 'CR' in test_load: load.setResistance(test_load['CR'])
+            if 'CV' in test_load: load.setVoltage(test_load['CV'])
+            if 'CC' in test_load: 
+                # Unncomment this if the load machine is crappy. (Sig SDL 1000x series for instance)
+                # if test_load['CC'] > 3.5:
+                #     load.setCurrent(test_load['CC']/2)
+                #     time.sleep(0.5)
+                load.setCurrent(test_load['CC'])
+
+            # SET OUTPUT ON AND MEASURE POWER
+            # time.sleep(1.0)
+            if 'time_before_load_on' in test_load: time.sleep(test_load['time_before_load_on'])
+            elif 'time_before_load_on' in test_config: time.sleep(test_config['time_before_load_on'])
+            # Sets load output on.
+            if not usbc_node_test or not ran_once: load.setOutputOn(True)  
+
+            if 'hold_load_time' in test_load: time.sleep(test_load['hold_load_time'])
+            elif 'loads' in test_config and 'hold_load_time' in test_config['loads']: 
+                loads_setting = test_config['loads']
+                time.sleep(loads_setting['hold_load_time'])
+            elif 'hold_load_time' in test_config: time.sleep(test_config['hold_load_time'])
+            time.sleep(1.0)
+
+            # This is where power is checked
+            if invert_power_thresh: power_check(power_threshold,relay,turn_load_off_after, invert_power_thresh)
+                #if not power_check(power_threshold,relay,turn_load_off_after, invert_power_thresh): return False
+            else: power_check(power_threshold,relay,turn_load_off_after)
+                #if not power_check(power_threshold,relay,turn_load_off_after): return False
+                    
+            ran_once = True
+            return True
+        return True
+
+    load.setOutputOn(True)
+    usbc_channels = ['output1','output2']
+    for index,channel in enumerate(usbc_channels): # usbc_channels defined as a global variable. Should be 2 channels until we make USBC supernodes
+        usbc_current_channel = usbc_channels[index]
+        print(usbc_current_channel)
+        controller.setRelays(channel)
+        for index,test_load in enumerate(test_loads):
+            if not USBC_test_load(test_load): 
+                updateLog('testLoads','fail')
+                return False
+    updateLog('testLoads','pass')
+    return True
+
 def testBatteryBackup(batt_test_load):
     if "Low Load" in batt_test_load: low_load = batt_test_load["Low Load"]
     else: 
@@ -817,16 +945,26 @@ def commission(commission_settings):
     settings = commission_settings.get("settings", {})
     success = True
 
+    checkVerbose = commission_settings.get("verbose", True)
+
     for resource, kv_pairs in settings.items():
         if not resource:
             print("No resource set for this setting")
             success = False
             continue
 
-        if resource == "/actuators/ALL":
-            print(f"Applying settings to all {node_channels} actuator channels")
+        if 'ALL' in resource: 
+            # Check resource type (actuator, sensor, etc.) and apply settings to all channels accordingly
+            if 'actuators' in resource: resource_type = 'actuator'
+            elif 'sensors' in resource: resource_type = 'input'
+            else: resource_type = 'unknown'
+            print(f"Applying settings to all {node_channels} {resource_type} channels:")
+            for k, v in kv_pairs.items():
+                print(f"  {k}: {v}")
             for channel in range(1,node_channels+1): # FIND THIS VARIABLE IN THE INITIALIZATION SECTION WHERE CHANNELS ARE DEFINED BY NODE TYPE 
-                resource_channel = resource.replace("ALL",f"actuator{str(channel)}")
+                # Replace the 'ALL' with the appropriate resource and channel number
+                resource_channel = resource.replace("ALL",f"{resource_type}{str(channel)}")
+
                 for key, value in kv_pairs.items():
                     if key is None:
                         print(f"No key set for resource {resource_channel}")
@@ -838,9 +976,15 @@ def commission(commission_settings):
                         continue
 
                     # Apply the setting
-                    if not coap_client.secure_setting(ip, resource_channel, key, value, True):
+                    if not coap_client.secure_setting(ip, resource_channel, key, value, checkVerbose, timeout = 5.0):
                         print(f"Failed to apply {key}={value} on {resource_channel}")
                         success = False
+                    if key == 'cccv':
+                        print(f"Waiting a few seconds after setting CCCV on {resource_channel}.") # Switch this to a timeout preferably.
+                        time.sleep(5.0)  # Allow time for CCCV to take effect
+                # if device.lower() == 'supernode' or device.lower() == 'ccuv':
+                #     print(f"Waiting 3 seconds between actuator settings for {device}.")
+                #     time.sleep(3.0)  # Some devices need a bit more time between settings
         else:
             for key, value in kv_pairs.items():
                 if key is None:
@@ -853,12 +997,13 @@ def commission(commission_settings):
                     continue
 
                 # Apply the setting
-                if not coap_client.secure_setting(ip, resource, key, value, True):
+                if not coap_client.secure_setting(ip, resource, key, value, checkVerbose, timeout = 8.0):
                     print(f"Failed to apply {key}={value} on {resource}")
                     success = False
 
+    time.sleep(5.0)  # Allow time to write to EEPROM
+    print("Commissioning complete. Writing to EEPROM...")
     return success
-
 
 def runTest():
     global device
@@ -909,16 +1054,6 @@ def runTest():
         node_channels = 8
         print("Initializing supernode test")
         snode.init(ip,test_config)
-        #device = 'Supernode'
-        # count = 0
-        # while count != 10:
-        #     coap_client.putValue(ip,'/network','lldp_enable','false')
-        #     lldp_setting = coap_client.getValue(ip,'/network','lldp_enable')
-        #     if lldp_setting == 'false':
-        #         print("LLDP has been set to false")
-        #         break
-        # if lldp_setting != 'false': print("LLDP failed to set to false. Failed after",count,"retries")
-        coap_client.set_lldp(ip,False)
 
         igain10_variable = 'cv_igain10'
         if device == 'Supernode CC' or 'Supernode': 
@@ -978,7 +1113,7 @@ def runTest():
             updateState('runTest','fail - serial_number','Fail','serial_number')
             if stop_on_failure:
                 return False
-    if board_version != '':
+    if board_version != '' and not supernode_test: # Fix this shit later
         if testBoardVersion(board_version):
             updateState('runTest','pass - board_version','Pass',f'board_version:{board_version}')
         else:
@@ -1001,10 +1136,10 @@ def runTest():
             if stop_on_failure:
                 return False
     if 'load' in test_config: # Fix later for toggle 0
-        load_settings = test_config['load']
-        if misc.check_toggle(load_settings):
+        parse_general_settings = test_config['load']
+        if misc.check_toggle(parse_general_settings):
             print("Starting Load Test")
-            if testLoad(load_settings):
+            if testLoad(parse_general_settings):
                 updateState('runTest','pass - load','Pass','load')
             else:
                 updateState('runTest','fail - load','Fail','load')
@@ -1034,21 +1169,27 @@ def runTest():
             rgbw_sets = [4278190080,16711680,65280,255,4294967295]
         else: rgbw_sets = test_config['rgbw']
         if mini_node_test: mnode.rgbw_test(rgbw_sets)
-    if 'sensor1' in test_config and test_config['sensor1']: # Unsure why this has a parameter
-        if testSensor1(test_config['sensor1']):
-            updateState('runTest','pass - sensor1','Pass','sensor1')
-        else:
-            updateState('runTest','fail - sensor1','Fail','sensor1')
-            if stop_on_failure:
-                return False
-    if 'pdline' in test_config and test_config['pdline']:
-        if testPDLine(test_config['pdline']): # Unsure why this has a parameter
-            print('pass','pdline')
-            updateState('runTest','pass - pdline','Pass','pdline')
-        else:
-            updateState('runTest','fail - pdline','Fail','pdline')
-            if stop_on_failure:
-                return False
+    if 'sensor1' in test_config:
+        if test_config['sensor1'] == 1 or test_config['sensor1'] == True: 
+            if testSensor1(test_config['sensor1']):
+                updateState('runTest','pass - sensor1','Pass','sensor1')
+            else:
+                updateState('runTest','fail - sensor1','Fail','sensor1')
+                if stop_on_failure:
+                    return False
+        elif test_config['sensor1'] == 0 or test_config['sensor1'] == False:
+            print(f"SENSOR1 TEST TOGGLE IS SET TO OFF {test_config['sensor1']}. SKIPPING SENSOR1 TEST.")
+        else: print(f"SENSOR1 TEST TOGGLE IS SET TO INCOHERENT VALUE: {test_config['sensor1']}. SHOULD BE true, false, 1, OR 0. SKIPPING SENSOR1 TEST.")
+    if 'pdline' in test_config:
+        if test_config['pdline'] == 1 or test_config['pdline'] == True:
+            if testPDLine(test_config['pdline']):
+                print('pass','pdline')
+                updateState('runTest','pass - pdline','Pass','pdline')
+            else:
+                updateState('runTest','fail - pdline','Fail','pdline')
+                if stop_on_failure:
+                    return False
+        else: print(f"PDLINE TEST TOGGLE IS SET TO OFF {test_config['pdline']}. SKIPPING PDLINE TEST.")
     if 'battery_backup_loads' in test_config:
         battery_backup_test = True
         mac_address = ''
@@ -1063,37 +1204,36 @@ def runTest():
     if mini_node_test and 'firmware_upgrade' in test_config and test_config['firmware_upgrade']: 
         print("Starting firmware upgrade...")
         mnode.firmware_upgrade_test()
-    if 'commission' in test_config: # Working on commission in main branch - Drew
+    
+    if supernode_test and 'dc_in' in test_config:
+        if test_config['dc_in'] == 1 or test_config['dc_in'] == True: 
+            print("Starting DC IN Test")
+            if snode.dc_in_test(): 
+                updateState('runtest','pass - dc in','Pass','dc in')
+            else: 
+                updateState('runtest','fail - dc in','Fail','dc in')
+        else: 
+            print("DC IN TEST TOGGLE IS SET TO OFF (0). SKIPPING DC IN TEST.")
+            updateState('runtest','skip - dc in','Skip','dc in')
+    
+    if 'commission' in test_config:
         commission_settings = test_config['commission']
-        if 'toggle' in commission_settings and commission_settings['toggle'] == 1:
+        if misc.check_toggle(commission_settings):
             print("Commissioning Node")
             if commission(commission_settings): 
                 updateState('runtest','pass - commission','Pass','commission')
             else: updateState('runtest','fail - commission','Fail','commission')
         else: print("Commission settings missing or toggled off.")
-    if supernode_test:
-        if snode.dc_in_test(): 
-            updateState('runtest','pass - dc in','Pass','dc in')
-        else: 
-            updateState('runtest','fail - dc in','Fail','dc in')
-        count: int = 0
-        while count != 10:
-            coap_client.putValue(ip,'/network','lldp_enable','true')
-            lldp_setting = coap_client.getValue(ip,'/network','lldp_enable')
-            if lldp_setting == 'true':
-                print("LLDP has been set to true")
-                break
-        if lldp_setting != 'true': print("LLDP failed to set to true. Failed after",count,"retries")
-    
-    if supernode_test:
-        for i in range(1,9): coap_client.secure_setting(ip,f'/actuators/actuator{i}','fadetime',2000)
-    if 'supernode_commission' in test_config: # Need to remove this later and replace with a more general commission in the supernode YAML
-        if snode.commission(test_config['supernode_commission']):
-            updateState('runTest','pass - commission supernode', 'Pass','commission supernode')
-        else:
-            updateState('runTest','fail - commission supernode', 'Fail','commission supernode')
-            if stop_on_failure: 
-                return False
+
+    # if supernode_test:
+    #     for i in range(1,9): coap_client.secure_setting(ip,f'/actuators/actuator{i}','fadetime',2000)
+    # if 'supernode_commission' in test_config: # Need to remove this later and replace with a more general commission in the supernode YAML
+    #     if snode.commission(test_config['supernode_commission']):
+    #         updateState('runTest','pass - commission supernode', 'Pass','commission supernode')
+    #     else:
+    #         updateState('runTest','fail - commission supernode', 'Fail','commission supernode')
+    #         if stop_on_failure: 
+    #             return False
     if 'cmd' in test_config:
         if testCMD(test_config['cmd']):
             updateState('runTest','pass - cmd','Pass','cmd')
@@ -1107,7 +1247,7 @@ def start():
     if not database.connect():
         updateState('start','failed - cannot connect to database','Failed','Cannot connect to database')
         return False
-    if not load_settings():
+    if not parse_general_settings():
         updateState('start','failed - cannot load general_settings.yaml','Failed','Cannot connect to database')
         return False
     if not load_test_config():
@@ -1153,16 +1293,16 @@ def checkSkipDB(arg):
     return False
 
 def checkCCCV(arg: str):
-    global CC_yaml, CV_yaml, CUV_yaml
+    global CC_yaml, CV_yaml, CCUV_yaml
     if arg.lower() == 'cc':
         CC_yaml = True
         print('CC_yaml')
     elif arg.lower() == 'cv':
         CV_yaml = True
         print('CV_yaml')
-    elif arg.lower() == 'cuv' or arg.lower() == 'cccv':
-        CUV_yaml = True
-        print('CUV_yaml')
+    elif arg.lower() == 'ccuv' or arg.lower() == 'cccv':
+        CCUV_yaml = True
+        print('CCUV_yaml')
     else: return False
 
 def checkSetSerialNumber(arg):

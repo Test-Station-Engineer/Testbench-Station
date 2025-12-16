@@ -9,3 +9,5 @@ psutil
 pyserial
 pyyaml
 keyboard
+
+streamlit pandas # For the web app and data handling

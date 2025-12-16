@@ -7,7 +7,7 @@ number_of_trigger_1_attempts: 1.0
 seconds_to_wait_for_restart: 8.0
 
 maxw: 713
-hold_load_time": 1
+hold_load_time": 2 # Put comment here explaining this.
 
 loads:
   toggle: 1

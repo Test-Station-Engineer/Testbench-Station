@@ -20,17 +20,18 @@ async def asyncPut(ip_address,resource,data,timeout = 5):
         #print('Result: %s\n%r' % (response.code, response.payload))
     except asyncio.TimeoutError:
         print(f'Request timed out after {timeout} seconds')
+        # IMPLEMENT AN ACTUAL TIMEOUT HANDLER HERE
     except Exception as e:
         print('Failed to fetch resource:')
         print(e)
     #else:
     #    print('Result: %s\n%r'%(response.code, response.payload))
 
-def put(ip_address,resource,data):
-    asyncio.run(asyncPut(ip_address,resource,data))
+def put(ip_address,resource,data,timeout = 5):
+    asyncio.run(asyncPut(ip_address,resource,data,timeout))
 
-def putValue(ip_address,resource,key,value):
-    put(ip_address,resource,{key:value})
+def putValue(ip_address,resource,key,value,timeout = 5):
+    put(ip_address,resource,{key:value},timeout)
 
 def putValueBcast(ip_address,resource,key,value):
     port = 5683
@@ -237,13 +238,16 @@ def setEventHL(ip_address,channel,eventhl):
     if channel == 0: putValue(ip_address,'/network','cmd','set_input_type eventhl'+str(eventhl))
     else: putValue(ip_address,'/sensors/input'+str(channel),'eventhl',str(eventhl))
 
-def secure_setting(ip_address: str,resource: str,key: str,value,verbose: bool = False):
+def secure_setting(ip_address: str,resource: str,key: str,value,verbose: bool = False, timeout: int = 5) -> bool:
     for i in range(1,10):    
         #print(power)
-        putValue(ip_address,resource,key,value)
+        putValue(ip_address,resource,key,value,timeout)
         get_setting = getValue(ip_address,resource,key)
         if value == get_setting:
-            if verbose or i > 1: print(f"{resource,key} assigned as {get_setting}. It took {i} tries")
+            if verbose:
+                if i > 1: print(f"{resource,key} assigned as {get_setting}. It took {i} tries.")
+                else: print(f"{resource,key} assigned as {get_setting}.")
+            elif i > 1: print(f"WARNING: ASSIGNING {resource,key} AS {get_setting} TOOK {i} TRIES.")
             return True
         time.sleep(0.25)
     if value is not get_setting:
