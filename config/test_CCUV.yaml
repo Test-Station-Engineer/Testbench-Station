@@ -2,13 +2,13 @@ code_version: "2out v Nov 12 2025 16:33:06"
 cxode_version: "2out v Dec  3 2025 13:58:12"
 
 # Trigger 1 Settings
-trigger_1_test: true
+trigger_1_test: 1
 chance_to_test_trigger_1: 100.0
 number_of_trigger_1_attempts: 1.0
 seconds_to_wait_for_restart: 8.0
 
 # Update Database
-update_db: true
+update_db: 1
 
 # Set max watt and load time for load test. Can be done within loads as well.
 # maxw: 713
@@ -30,6 +30,8 @@ loads:
 sensor1: 1
 pdline: 1
 
+rs485: 1
+
 commission:
   toggle: 1
   settings:
@@ -39,4 +41,4 @@ commission:
       maxw: "100"
       pp: 100
 
-append_to_file: true
+append_to_file: 1

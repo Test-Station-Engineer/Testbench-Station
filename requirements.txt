@@ -10,4 +10,5 @@ pyserial
 pyyaml
 keyboard
 
+pymodbus
 streamlit pandas # For the web app and data handling

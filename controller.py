@@ -52,6 +52,7 @@ rx_line = ''
 print_rx = False # Set true to debug
 rx_thread_running = False
 rx_thread_started = False
+
 def rxThreadFunction(name):
     global lines, rx_line
     while(rx_thread_running):

@@ -20,6 +20,9 @@ from devices import functions_els as els
 from devices import functions_supernode as snode
 from devices import functions_mini as mnode
 
+import prompt
+import rs485
+
 stop_on_failure: bool = True
 update_golden: bool = False
 require_golden_match: bool = False
@@ -46,21 +49,16 @@ CC_yaml: bool = False
 CV_yaml: bool = False
 CCUV_yaml: bool = False
 
-# CUSTOM DEVICE SETTINGS
-# Mini Node Settings
+# DEVICE IDENTIFICATION
 mini_node_test: bool = False
-# ELS Node Settings
 els_node_test: bool = False
-# USBC Node Settings
 usbc_node_test: bool = False
 usbc_current_channel = ''
-# Supernode Settings
 supernode_test: bool = False
-# Battery Backup Settings
 battery_backup_test: bool = False
 
-# Allows testbench to look for a device with leading digits provided in an arguement and 
-# sets the serial number of that device to the serial number arguement
+# Allows testbench to look for a device with leading digits provided in an argument and 
+# sets the serial number of that device to the serial number argument
 set_sn: bool = False
 sn_leading_digits_to_set_sn: str
 
@@ -76,7 +74,8 @@ test_config = None
 prompt_continue_key: str = 'DOWN'
 prompt_end_test_key: str = 'Esc'
 
-csv_filename: str = ''
+csv_arg_file_name: str = ''
+batch_csv_file = "test_batch.csv"
 
 def updateState(method,msg,state,description):
     print(method,msg)
@@ -149,8 +148,11 @@ def parse_general_settings():
     #         if 'COM' in COM_port:
     #             num_str = ''.join(ch for ch in COM_port if ch.isdigit())
     #             COM_port = int(num_str)
-            
-    
+
+    if 'BATCH' in general_settings_config:
+        global batch_csv_file
+        batch_csv_file = general_settings_config['BATCH']
+
 
 def load_test_config():
     global device, test_config
@@ -436,7 +438,15 @@ def power_check(power_to_check_against: float, relay: int, turn_off_load_after: 
 
         #if power < test_load['power']: 
         if test_value < 0:
-            misc.send_test_prompt(misc.key,f"TEST STATION PAUSED. PRESS {misc.key} TO CONTINUE.","CONTINUING TEST...")
+            # misc.send_test_prompt(misc.key,f"TEST STATION PAUSED. PRESS {misc.key} TO CONTINUE.","CONTINUING TEST...")
+            if reverse_power_thresh: 
+                if prompt.prompt("Power Measure Fail",f"Power Measure Fail. Measured {power} watts. Expected at most {power_to_check_against} watts. Continue the test?"):
+                    pass
+            else: 
+                if prompt.prompt("Power Measure Fail",f"Power Measure Fail. Measured {power} watts. Expected at least {power_to_check_against} watts. Continue the test?"):
+                    pass
+                else: # misc.updateLog('testLoad',relay,'fail power',power)
+                    return False
             power = load.measurePower()
 
         # Sets load output off
@@ -759,7 +769,7 @@ def testBatteryLoad(upper_load,lower_load,key,wait_time):
     if not testCCCV(10):
         return False
     coap_client.setDim(ip,3,90)
-    #time.sleep(1)
+    time.sleep(1)
     coap_client.setDim(ip,3,100)
 
     time.sleep(wait_time)
@@ -770,7 +780,7 @@ def testBatteryLoad(upper_load,lower_load,key,wait_time):
     if not testCCCV(10): 
         return False
     coap_client.setDim(ip,3,90)
-    #time.sleep(1)
+    time.sleep(1)
     coap_client.setDim(ip,3,100)
     
     misc.send_test_prompt(key,f"Press and hold switch test button. Then press {key} on keyboard when ready.", "Keep button held.")
@@ -1005,11 +1015,26 @@ def commission(commission_settings):
     print("Commissioning complete. Writing to EEPROM...")
     return success
 
+def testRS485():
+    rs485.main()
+    #misc.send_test_prompt(misc.key,f"Verify RS485 communication was successful. Press {misc.key} if it passed and 'Esc' if it failed.", "")
+    if prompt.prompt("RS485 Testing", "Check the console to see if RS485 communication was successful. Did it pass?"):
+        return True
+    return False
+
 def runTest():
     global device
     global mac_address
     global battery_backup_test
     global node_channels
+
+    if 'code_version' in test_config:
+        if testCodeVersion(test_config['code_version']):
+            updateState('runTest','pass - code_version','Pass','code_version')
+        else:
+            updateState('runTest','fail - code_version','Fail','code_version')
+            if stop_on_failure:
+                return False
 
     if 'trigger_1_test' in test_config and test_config['trigger_1_test']:
         if 'chance_to_test_trigger_1' in test_config:
@@ -1023,8 +1048,12 @@ def runTest():
                 else: 
                     updateState('runTest','fail - trigger1','Fail','trigger1')
             else: pass
-    if 'update_db' in test_config and test_config['update_db']: coap_client.putValue(ip,'/network','cmd','update_db')
-    time.sleep(8.0)
+
+    if 'update_db' in test_config:
+        if test_config['update_db'] != False or test_config['update_db'] != 0: 
+            coap_client.putValue(ip,'/network','cmd','update_db')
+            time.sleep(8.0)
+    
     if not battery_backup_test:
         sn = coap_client.getSN(ip)
         if mini_node_test: mac_address = coap_client.getValue(ip,'/network','mac')
@@ -1083,10 +1112,6 @@ def runTest():
             coap_client.putValue(ip,'/sensors/input'+str(i),'eventlh','default') 
             coap_client.putValue(ip,'/sensors/input'+str(i),'eventhl','default') # change sensor 1 events supernode version
 
-        # coap_client.setSentype(ip,0,'disable')
-        # coap_client.setEventLH(ip,0,'default')
-        # coap_client.setEventHL(ip,0,'default')
-
     else:
         if not mini_node_test:
             coap_client.putValue(ip,'/network','cmd','set_ws 0')
@@ -1097,13 +1122,6 @@ def runTest():
             updateState('runTest','pass - subnet','Pass','subnet')
         else:
             updateState('runTest','fail - subnet','Fail','subnet')
-            if stop_on_failure:
-                return False
-    if 'code_version' in test_config:
-        if testCodeVersion(test_config['code_version']):
-            updateState('runTest','pass - code_version','Pass','code_version')
-        else:
-            updateState('runTest','fail - code_version','Fail','code_version')
             if stop_on_failure:
                 return False
     if serial_number != '' or serial_number != '0':
@@ -1241,6 +1259,15 @@ def runTest():
             updateState('runTest','fail - cmd','Fail','cmd')
             if stop_on_failure:
                 return False
+    
+    if 'rs485' in test_config and (test_config['rs485'] == 1 or test_config['rs485'] == True):
+        if testRS485():
+            updateState('runTest','pass - rs485','Pass','rs485')
+        else:
+            updateState('runTest','fail - rs485','Fail','rs485')
+            if stop_on_failure:
+                return False
+
     return True
 
 def start():
@@ -1254,6 +1281,7 @@ def start():
         updateState('start','failed - cannot load test.yaml','Failed','Cannot load test.yaml')
         return False
     if not controller.open(port,baud,timeout):
+    #if not controller.open_device("ARDUINO_NANO"): # Feature for future
         updateState('start','failed - cannot open controller port','Failed','Cannot open controller port')
         return False
     controller.print_rx = debug_print # debug
@@ -1340,20 +1368,20 @@ def checkCustomDevice(arg):
         print("Recorded Serial Number will be: ", custom_sn)
 
 def checkCSV(arg):
-    global csv_filename
+    global csv_arg_file_name
     if 'csv' in arg.lower():
-        csv_filename = str(arg).lower().replace('.', '').replace('csv', '')
-        if csv_filename == 'no': csv_filename = None
+        csv_arg_file_name = str(arg).lower().replace('.', '').replace('csv', '')
+        if csv_arg_file_name == 'no': csv_arg_file_name = None
         else:
-            csv_filename = f"{csv_filename}.csv"
-            #print(f"NODE WILL BE RECORDED IN {csv_filename}.")
+            csv_arg_file_name = f"{csv_arg_file_name}.csv"
+            #print(f"NODE WILL BE RECORDED IN {csv_arg_file_name}.")
 
 def checkArg(arg):
     return checkSkipDB(arg) or checkVerbose(arg) or checkCCCV(arg) or checkCustomDevice(arg) or checkSetSerialNumber(arg) or checkCSV(arg)
     
 ###################    
 
-def write_to_csv(csv_file_name, sn_to_csv = None,mac_to_csv = None):
+def write_to_csv(csv_file_name: str, sn_to_csv = None,mac_to_csv = None, test_status: str = 'Pass'):
     
     # Define the folder path where the CSV files will be saved
     folder_path = "records"
@@ -1398,7 +1426,7 @@ def write_to_csv(csv_file_name, sn_to_csv = None,mac_to_csv = None):
                         writer.writeheader()
 
                     current_time = str(time.strftime("%Y-%m-%d %H:%M:%S", time.localtime()))
-                    writer.writerow({'Device': device,'Rev': board_version.capitalize(), 'Serial Number': sn_to_csv, 'MAC Address': mac_to_csv.upper(), 'Status': 'Pass', 'Date': current_time})
+                    writer.writerow({'Device': device,'Rev': board_version.capitalize(), 'Serial Number': sn_to_csv, 'MAC Address': mac_to_csv.upper(), 'Status': test_status, 'Date': current_time})
 
         print(sn_to_csv,"has been written to", csv_file_name)
     else: print("NO DATA HAS BEEN WRITTEN.")
@@ -1406,7 +1434,7 @@ def write_to_csv(csv_file_name, sn_to_csv = None,mac_to_csv = None):
 ###################
 
 def main(argv, arc):
-    global test_id, serial_number, mac_address, board_version, csv_filename
+    global test_id, serial_number, mac_address, board_version, csv_arg_file_name
     #print(argv, arc)
     if arc > 1:
         if not checkArg(argv[1]):
@@ -1434,23 +1462,63 @@ def main(argv, arc):
         else:
             updateState('main','test end - fail','Completed','Fail')
     stop()
+
+    t = time.localtime()
+    date_csv_file = f"{t.tm_year % 100}_{t.tm_mon}_{t.tm_mday}.csv"
+    csv_list = [
+        f"fpy_{device}_{t.tm_year}.csv",
+        f"fpy_{t.tm_year}.csv",
+        batch_csv_file,
+        date_csv_file
+    ]
+
     if final_pass:
         print('\nfinal - pass')
+        test_status = 'Pass'
 
-        # print("CSV Filename:",csv_filename)
-        if "append_to_file" in test_config and test_config["append_to_file"] != False:
-            if battery_backup_test:
-                serial_number = custom_sn
-                print("Battery Backup Serial Number:",serial_number)
-                mac_address = 'N/A'
-            if csv_filename == '': 
-                t = time.localtime()
-                csv_filename = f"{t.tm_year % 100}_{t.tm_mon}_{t.tm_mday}.csv"
-                # print("CSV Filename:",csv_filename)
-            if csv_filename == None: print("argument 'nocsv' was set, not writing to any csv file.")
-            else: write_to_csv(csv_filename, serial_number, mac_address)
+        # print("CSV Filename:",csv_arg_file_name)
+        # if "append_to_file" in test_config:
+        #     if test_config["append_to_file"] != False and test_config["append_to_file"] != 0:
+        #         if csv_arg_file_name == '': 
+        #             t = time.localtime()
+        #             csv_arg_file_name = f"{t.tm_year % 100}_{t.tm_mon}_{t.tm_mday}.csv"
+        #             # print("CSV Filename:",csv_arg_file_name)
+        #         if csv_arg_file_name == None: print("argument 'nocsv' was set, not writing to any csv file.")
+        #         else: write_to_csv(
+        #             csv_file_name=csv_arg_file_name, 
+        #             sn_to_csv=serial_number, 
+        #             mac_to_csv=mac_address,
+        #             test_status='Pass'
+        #             )
+        #     else: print("APPEND TO FILE IS SET TO FALSE. NOT WRITING TO ANY CSV.")
     else:
         print('\nfinal - fail')
+        test_status = 'Fail'
+        csv_list = [
+            f"fpy_{device}_{t.tm_year}.csv",
+            f"fpy_{t.tm_year}.csv"
+    ]
+
+    if csv_arg_file_name != None: 
+        # Set serial number to the battery backup serial number for writing to csv
+        if battery_backup_test:
+            serial_number = custom_sn 
+            print("Battery Backup Serial Number:",serial_number)
+            mac_address = 'N/A'
+
+
+        csvs_to_write_to = prompt.multi_selection_prompt(
+            title="Add Device to CSVs",
+            message="Select which CSV files this device should be added to:",
+            selections=csv_list
+            )
+        
+        for csv_file in csvs_to_write_to:
+            if csv_file == batch_csv_file or csv_file == date_csv_file: 
+                write_to_csv(csv_file, serial_number, mac_address, test_status) # Need to implement custom logic for this showing exactly what passed
+            else: 
+                write_to_csv(csv_file, serial_number, mac_address, test_status)
+    else: print("ARGUMENT 'nocsv' WAS SET, NOT WRITING TO ANY CSV.")
     print('done')
 
 if __name__ == '__main__':
