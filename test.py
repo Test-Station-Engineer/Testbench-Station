@@ -1243,15 +1243,6 @@ def runTest():
             else: updateState('runtest','fail - commission','Fail','commission')
         else: print("Commission settings missing or toggled off.")
 
-    # if supernode_test:
-    #     for i in range(1,9): coap_client.secure_setting(ip,f'/actuators/actuator{i}','fadetime',2000)
-    # if 'supernode_commission' in test_config: # Need to remove this later and replace with a more general commission in the supernode YAML
-    #     if snode.commission(test_config['supernode_commission']):
-    #         updateState('runTest','pass - commission supernode', 'Pass','commission supernode')
-    #     else:
-    #         updateState('runTest','fail - commission supernode', 'Fail','commission supernode')
-    #         if stop_on_failure: 
-    #             return False
     if 'cmd' in test_config:
         if testCMD(test_config['cmd']):
             updateState('runTest','pass - cmd','Pass','cmd')
@@ -1259,7 +1250,7 @@ def runTest():
             updateState('runTest','fail - cmd','Fail','cmd')
             if stop_on_failure:
                 return False
-    
+            
     if 'rs485' in test_config and (test_config['rs485'] == 1 or test_config['rs485'] == True):
         if testRS485():
             updateState('runTest','pass - rs485','Pass','rs485')
@@ -1267,7 +1258,7 @@ def runTest():
             updateState('runTest','fail - rs485','Fail','rs485')
             if stop_on_failure:
                 return False
-
+            
     return True
 
 def start():
