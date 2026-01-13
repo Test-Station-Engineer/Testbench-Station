@@ -13,8 +13,15 @@ def prompt(title_text = "Title Header", message_text = "Message Body"):
     root.lift()
     root.focus_force()
 
+    # # Show the popup
+    # result = messagebox.askyesno(
+    #     title=title_text,
+    #     message=message_text,
+    #     parent=root
+    # )
+
     # Show the popup
-    result = messagebox.askyesno(
+    result = messagebox.askokcancel(
         title=title_text,
         message=message_text,
         parent=root
@@ -23,17 +30,32 @@ def prompt(title_text = "Title Header", message_text = "Message Body"):
     root.destroy()
     return result
 
-# def first_pass_yield_prompt(device_name: str) -> bool:
-#     return prompt(
-#         title_text = "First Pass Yield Confirmation",
-#         message_text = f"Do you want to add device: {device_name} to First Pass Yield?"
-#     )
+def abort_retry_ignore_prompt(title: str = "Abort, Retry, Ignore", message: str = "Message Body") -> str:
+    root = tk.Tk()
+
+    # Make the root window invisible
+    root.withdraw()
+
+    # Force it to be the topmost window
+    root.attributes('-topmost', True)
+    root.lift()
+    root.focus_force()
+
+    s = messagebox._show(title, message, messagebox.QUESTION, messagebox.ABORTRETRYIGNORE)
+    s = str(s)
+    if s == messagebox.ABORT: result = "abort"
+    elif s == messagebox.RETRY: result = "retry"
+    elif s == messagebox.IGNORE: result = "ignore"
+    else: 
+        print("Result is unexpected value:", s)
+        result = None
+    return result
 
 def multi_selection_prompt(
     title: str,
     message: str,
     selections: list[str]
-) -> dict:
+    ) -> dict:
     root = tk.Tk()
     root.withdraw()
 

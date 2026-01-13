@@ -11,4 +11,4 @@ pyyaml
 keyboard
 
 pymodbus
-streamlit pandas # For the web app and data handling
+streamlit pandas plotly # For the web app and data handling (Originally: streamlit pandas)

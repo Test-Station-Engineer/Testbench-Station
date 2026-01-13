@@ -95,8 +95,9 @@ def scan(range_start=2, range_end=255, scan_timeout=0.1):
                 if serial_number != '' and node['network']['serialnum'] == serial_number:
                     break
     
-    print('\r100% ')
-    print('Scan found', len(nodes), 'nodes')
+    #print('\r100% ')
+    print('100%')
+    print('Scan found', len(nodes), 'nodes',flush=True)
     elapsed = round(time.time() - start, 1)
     print('Scan complete in', elapsed, 's')
     return nodes

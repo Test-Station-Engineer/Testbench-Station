@@ -4,6 +4,7 @@ import threading
 import queue
 import os
 import pandas as pd
+import plotly.graph_objects as go
 
 import time
 
@@ -11,7 +12,6 @@ import time
 # Page config
 # -----------------------------
 st.set_page_config(page_title="Test Station UI", layout="wide")   # Sets the page title and layout
-
 
 # -----------------------------
 # Session state initialization
@@ -32,19 +32,31 @@ if "csv_tabs" not in st.session_state:
 if "stop_flag" not in st.session_state:
     st.session_state.stop_flag = {"stop": False}
 
+if "dark_mode" not in st.session_state:                 # Create a dark mode toggle if it doesn't exist
+    st.session_state.dark_mode = False                   # and set default mode
+
 # -----------------------------
-# Helper: stream process output
+# Helper: stream process output, has problems at the moment maintaining stream of output from the test.py script 
+# because output is buffered and not flushed to the console immediately - Drew 2026-01-02
 # -----------------------------
+# def stream_process_output(process, q, stop_flag):
+#     for line in iter(process.stdout.readline, b""):
+#         if stop_flag["stop"]:
+#             break
+#         try:
+#             decoded = line.decode("utf-8", errors="ignore")
+#         except Exception:
+#             decoded = str(line)
+#         q.put(decoded)
+#     process.stdout.close()
+
 def stream_process_output(process, q, stop_flag):
-    for line in iter(process.stdout.readline, b""):
+    for line in iter(process.stdout.readline, ''):  # sentinel is empty string in text mode
         if stop_flag["stop"]:
             break
-        try:
-            decoded = line.decode("utf-8", errors="ignore")
-        except Exception:
-            decoded = str(line)
-        q.put(decoded)
+        q.put(line)
     process.stdout.close()
+
 
 
 # -----------------------------
@@ -63,23 +75,25 @@ def launch_test(serial_number, board_version, device_type, batch, csvs_to_write)
     # argv[3] = board_version
     # argv[4-7] = extra (we'll use device_type, batch, and placeholders)
     cmd = [
+        # sys.executable,
         "python",
-        "fake_test.py",
-        #test_id if test_id else "0",
+        "-u",           # unbuffered output
+        "test.py",
+        "1",
         serial_number if serial_number else "0",
         board_version if board_version else "0",
         device_type if device_type else "0",
-        batch if batch else "0",
-        "0",
-        "0",
+        batch if batch else "0"
+        # "0",
+        # "0",
     ]
 
     # Pass CSV list via environment variable
     env = os.environ.copy()
     env["CSV_LIST"] = ",".join(csvs_to_write) if csvs_to_write else ""
+    #env["PYTHONUNBUFFERED"] = "1"  # belt-and-suspenders; Removed for now
 
-    # st.session_state.stop_requested = False # REPLACED
-    st.session_state.stop_flag["stop"] = False # REPLACEMENT
+    st.session_state.stop_flag["stop"] = False
     st.session_state.log_text = ""
 
     process = subprocess.Popen(
@@ -87,37 +101,173 @@ def launch_test(serial_number, board_version, device_type, batch, csvs_to_write)
         stdout=subprocess.PIPE,
         stderr=subprocess.STDOUT,
         bufsize=1,
+        text=True,           # return str, not bytes
         env=env,
     )
 
     st.session_state.process = process
 
-    t = threading.Thread(
+    reader = threading.Thread(
         target=stream_process_output,
         args=(process, st.session_state.log_queue, st.session_state.stop_flag),
         daemon=True,
     )
-    t.start()
+    reader.start()
+
+    def watch_and_finalize(proc, stop_flag):
+        rc = proc.wait() # Wait for test.py process to complete
+        # Signal the UI and stop the reader loop if it’s still running
+        stop_flag["stop"] = True
+        # Push a final line to the queue so the UI shows completion
+        st.session_state.log_queue.put(f"\nTest process exited with code {rc}.\n")
+        # Marks process as no longer running
+        st.session_state.process = None
+
+    
+    watcher = threading.Thread(
+        target=watch_and_finalize,
+        args=(process, st.session_state.stop_flag),
+        daemon=True,
+    )
+    watcher.start()
 
 
 # -----------------------------
 # Helper: stop test process
 # -----------------------------
+# def stop_test():
+#     if st.session_state.process is not None:
+#         #st.session_state.stop_requested = True # REPLACED
+#         st.session_state.stop_flag["stop"] = True # REPLACEMENT
+#         try:
+#             st.session_state.process.terminate()
+#         except Exception:
+#             pass
+#         st.session_state.process = None
+
 def stop_test():
-    if st.session_state.process is not None:
-        #st.session_state.stop_requested = True # REPLACED
-        st.session_state.stop_flag["stop"] = True # REPLACEMENT
+    proc = st.session_state.process
+    if proc is not None:
+        st.session_state.stop_flag["stop"] = True
         try:
-            st.session_state.process.terminate()
+            proc.terminate()
+            try:
+                proc.wait(timeout=3)  # give it a moment to exit gracefully
+            except subprocess.TimeoutExpired:
+                proc.kill()           # force kill if needed
         except Exception:
             pass
-        st.session_state.process = None
+        finally:
+            st.session_state.process = None
 
+
+# -----------------------------
+# Helper: apply theme CSS
+# -----------------------------
+def apply_theme():
+    if st.session_state.get("dark_mode", False):
+        st.markdown("""
+        <style>
+
+        /* ===== Base background + text ===== */
+        .stApp {
+            background-color: #0e1117 !important;  /* App page background (very dark navy/graphite) */
+            color: #fafafa !important;             /* Default text color across the app (near-white) */
+        }
+        .main .block-container {
+            background-color: #0e1117 !important;  /* Main content container background (matches app bg) */
+            color: #fafafa !important;             /* Main content text color */
+        }
+
+        /* ===== Sidebar ===== */
+        section[data-testid="stSidebar"] {
+            background-color: #1e1e1e !important;  /* Sidebar panel background (slightly lighter than main) */
+            color: #fafafa !important;             /* Sidebar text color */
+        }
+        section[data-testid="stSidebar"] * {
+            color: #fafafa !important;             /* Ensure all nested text/icons in sidebar are light */
+        }
+
+        /* ===== Headings / labels ===== */
+        h1, h2, h3, h4, h5, h6, label {
+            color: #fafafa !important;             /* Headings and form labels: high-contrast light text */
+        }
+
+        /* ===== Text input / textarea ===== */
+        div[data-testid="stTextInput"] input,
+        div[data-testid="stTextArea"] textarea {
+            background-color: #262730 !important;  /* Input field background (dark slate) */
+            color: #fafafa !important;             /* Input text color (light for readability) */
+            border: 1px solid #4a4a4a !important;  /* Input border (subtle gray outline) */
+        }
+
+        /* ===== Selectbox / Multiselect (BaseWeb select) ===== */
+        div[data-baseweb="select"] > div {
+            background-color: #262730 !important;  /* Select control surface (same as inputs) */
+            color: #fafafa !important;             /* Selected text value color */
+            border: 1px solid #4a4a4a !important;  /* Select border (consistent with inputs) */
+        }
+        div[data-baseweb="select"] svg {
+            fill: #fafafa !important;              /* Dropdown chevron icon color (light) */
+        }
+
+        /* ===== Buttons ===== */
+        .stButton > button {
+            background-color: #262730 !important;  /* Button background (dark slate to match inputs) */
+            color: #fafafa !important;             /* Button text color (light) */
+            border: 1px solid #4a4a4a !important;  /* Button border (subtle gray) */
+        }
+        .stButton > button:hover {
+            background-color: #3a3a3a !important;  /* Hover background (slightly lighter for feedback) */
+            border-color: #6a6a6a !important;      /* Hover border (a bit brighter for emphasis) */
+        }
+
+        /* ===== Tabs (Streamlit 1.52 structure) ===== */
+        div[data-testid="stTabs"] button {
+            background-color: #1e1e1e !important;  /* Unselected tab background (matches sidebar tone) */
+            color: #fafafa !important;             /* Tab label text color */
+        }
+        div[data-testid="stTabs"] button[aria-selected="true"] {
+            background-color: #262730 !important;  /* Selected tab background (same tone as inputs/buttons) */
+            color: #fafafa !important;             /* Selected tab text stays readable */
+        }
+
+        /* ===== DataFrames ===== */
+        div[data-testid="stDataFrame"] {
+            background-color: #262730 !important;  /* DataFrame container background (dark slate) */
+            color: #fafafa !important;             /* Default text color inside the DataFrame area */
+        }
+
+        /* ===== File Uploader ===== */
+        div[data-testid="stFileUploaderDropzone"] {
+            background-color: #ffffff !important;  /* Dropzone background (white for clear contrast cues) */
+            border-color: #cccccc !important;      /* Dropzone border (soft gray) */
+            color: #000000 !important;             /* Dropzone text/icon color (black for legibility) */
+        }
+        div[data-testid="stFileUploaderDropzone"] * {
+            color: #000000 !important;             /* Force nested elements (icons, labels) to black */
+        }
+
+        </style>
+        """, unsafe_allow_html=True)
+
+# ============================================================
+# Apply theme
+# ============================================================
+apply_theme()
 
 # ============================================================
 # Sidebar – Test parameters + CSV output selection
 # ============================================================
 st.sidebar.header("Test parameters")
+
+# Theme toggle at the top
+st.sidebar.markdown("---")
+dark_mode_toggle = st.sidebar.toggle("🌙 Dark Mode", value=st.session_state.dark_mode)
+if dark_mode_toggle != st.session_state.dark_mode:
+    st.session_state.dark_mode = dark_mode_toggle
+    st.rerun()
+# End theme toggle shit
 
 # test_id = st.sidebar.text_input("Test ID")
 serial_number = st.sidebar.text_input("Serial Number")
@@ -229,7 +379,6 @@ with col1:
 
                 if df is not None:
                     st.subheader("Raw data")
-                    #st.dataframe(df, use_container_width=True)
                     st.dataframe(df, width='stretch')
 
                     st.markdown("---")
@@ -243,32 +392,29 @@ with col1:
                         columns = list(df.columns)
 
                         # Try to auto-detect based on your schema, but allow override
-                        default_result_col = "Status" if "Status" in columns else columns[0]
-                        default_time_col = "Date" if "Date" in columns else "<None>"
+                        # result_col = "Status" if "Status" in columns else columns[0]
+                        # time_col = "Date" if "Date" in columns else "<None>"
+                        result_col = "Status" if "Status" in columns else st.selectbox(
+                                label="Result/status column (Pass/Fail)",
+                                options=["<None>"] + columns,
+                                index=(["<None>"] + columns).index("Result")
+                                if "Result" in columns
+                                else 0,
+                                key=f"result_col_{i}",
+                            )
+                        if "Date" in columns:
+                            time_col = "Date" 
+                        else:
+                            time_col = st.selectbox(
+                                label="Time column for FPY over time (optional)",
+                                options=["<None>"] + columns, 
+                                index=(["<None>"] + columns).index("Time")
+                                if "Time" in columns
+                                else 0,
+                                key=f"time_col_{i}",
+                            )
 
-                        result_col = st.selectbox(
-                            "Result/status column (Pass/Fail)",
-                            options=columns,
-                            index=columns.index(default_result_col)
-                            if default_result_col in columns
-                            else 0,
-                            key=f"result_col_{i}",
-                        )
-
-                        pass_value = st.text_input(
-                            "Value representing a PASS in that column",
-                            value="Pass",
-                            key=f"pass_value_{i}",
-                        )
-
-                        time_col = st.selectbox(
-                            "Time column for FPY over time (optional)",
-                            options=["<None>"] + columns,
-                            index=(["<None>"] + columns).index(default_time_col)
-                            if default_time_col in columns
-                            else 0,
-                            key=f"time_col_{i}",
-                        )
+                        pass_value = "Pass"
 
                         # Overall FPY
                         total = len(df)
@@ -291,7 +437,6 @@ with col1:
                         ).set_index("Result")
 
                         st.markdown("**FPY bar chart (Pass vs Fail)**")
-                        #st.bar_chart(bar_df, use_container_width=True)
                         st.bar_chart(bar_df, width='stretch')
 
                         # -------------------------
@@ -328,8 +473,27 @@ with col1:
                                 line_chart_df = time_df.set_index(time_col)[["FPY"]]
 
                                 st.markdown("**FPY line chart over time (cumulative)**")
-                                #st.line_chart(line_chart_df, use_container_width=True)
-                                st.line_chart(line_chart_df, width='stretch')
+                                
+                                # Create Plotly figure
+                                fig = go.Figure()
+                                fig.add_trace(go.Scatter(
+                                    x=line_chart_df.index,
+                                    y=line_chart_df["FPY"],
+                                    mode='lines',
+                                    name='FPY',
+                                    line=dict(width=2)
+                                ))
+                                fig.update_layout(
+                                    xaxis_title=time_col,
+                                    yaxis_title="FPY",
+                                    yaxis=dict(range=[0, 1], tickformat='.2%'),
+                                    hovermode='x unified',
+                                    height=400,
+                                    showlegend=False
+                                )
+                                
+                                # st.plotly_chart(fig, width='content')
+                                st.plotly_chart(fig, width='stretch')
                         else:
                             st.info(
                                 "Select a time column (e.g., 'Date') to see FPY as a line chart over time."
@@ -355,11 +519,22 @@ with col2:
         height=500,
     )
 
-    if st.session_state.process is not None:
-        st.success("Test is running.")
-        # Force UI refresh so logs update live
-        import time
-        time.sleep(0.1)
-        st.rerun()
+    # if st.session_state.process is not None:
+    #     st.success("Test is running.")
+    #     time.sleep(0.1) 
+    #     st.rerun() # Force UI refresh so logs update live
+    
+    proc = st.session_state.process
+    if proc is not None:
+        rc = proc.poll()  # None -> still running; integer -> finished
+        if rc is None:
+            st.success("Test is running.")
+            time.sleep(0.1)
+            st.rerun()  # keep refreshing *only while running*
+        else:
+            # Process finished; clean up state (watcher will also set these)
+            st.session_state.process = None
+            st.session_state.stop_flag["stop"] = True
+            st.success(f"Test finished with exit code {rc}.")
     else:
         st.info("No test is currently running.")

@@ -1,6 +1,7 @@
 # test.py
 
 #Probably newest version
+from pickletools import int4
 import controller
 import coap_client
 import load
@@ -22,6 +23,8 @@ from devices import functions_mini as mnode
 
 import prompt
 import rs485
+
+sys.stdout.reconfigure(line_buffering=True)
 
 stop_on_failure: bool = True
 update_golden: bool = False
@@ -94,7 +97,7 @@ def updateLog(*args):
             desc += ' '+str(arg)
     if desc != '':
         print(desc)
-        database.updateTestLog(test_id,serial_number,board_version,desc)
+        #database.updateTestLog(test_id,serial_number,board_version,desc)
 
 def load_yaml(file_path):
     """Load a YAML file safely, updating logs if successful."""
@@ -158,7 +161,6 @@ def load_test_config():
     global device, test_config
 
     folder_path = "config"
-    file_name = os.path.join(folder_path, "test.yaml")  # default
 
     if CV_yaml:
         file_name = os.path.join(folder_path, "test_CV.yaml")
@@ -172,7 +174,7 @@ def load_test_config():
     elif mini_node_test:
         file_name = os.path.join(folder_path, 'test_mini_node.yaml')
     elif battery_backup_test:
-        # device = 'Battery Backup' # Redundant, done in CheckCustomDevice(arg)
+        # device = 'Battery-Backup' # Redundant, done in CheckCustomDevice(arg)
         file_name = os.path.join(folder_path, 'test_battery_backup.yaml')
     elif supernode_test:
         if device == 'Supernode':
@@ -187,7 +189,8 @@ def load_test_config():
     elif els_node_test: 
         device = 'ELS Node'
     else:
-        device = 'CC-0-10'
+        file_name = os.path.join(folder_path, "test.yaml")  # default
+        device = "CCUV"
     test_config = load_yaml(file_name)
     if test_config is not None: return True
     else:
@@ -269,18 +272,18 @@ def testCodeVersion(code_version):
     golden = coap_client.getGoldenVersion(ip)
     dfd = coap_client.getDFDVersion(ip)
     if dfu != code_version:
-        updateLog('testCodeVersion','fail dfu',dfu)
+        updateLog('testCodeVersion','fail dfu',dfu,'expected',code_version)
         return False
     if golden != code_version:
         updateLog('testCodeVersion','fail golden',golden)
         if update_golden:
             updateLog('testCodeVersion','update golden')
-            coap_client.putValue(ip,'/dfu','updt',0)
+            coap_client.putValue(ip,'/dfu','updt',0)         # update golden / No longer used
             elapsed = 0
             while elapsed < 100:
                 time.sleep(1.0)
                 elapsed += 1
-                print('\r waiting for reboot: ',str(elapsed),endl='') # Returns an error - Drew
+                print('\r waiting for reboot: ',str(elapsed),end='')
             golden = coap_client.getGoldenVersion(ip)
             if require_golden_match == True:
                 if  golden != code_version:
@@ -338,7 +341,7 @@ def testTrigger(number_of_times_to_restart,seconds_to_wait_for_restart):
 def testCMD(cmds):
     for cmd in cmds:
         coap_client.putValue(ip,'/network','cmd',str(cmd))
-        time.sleep(1)
+        time.sleep(1.0)
     return True
 
 
@@ -349,8 +352,7 @@ def testCCCV(cccv):
     if supernode_test: coap_client.setCCCV(ip,0,cccv)
     else: coap_client.setCCCV(ip,3,cccv)
 
-    if supernode_test:
-        time.sleep(8.0)
+    time.sleep(6.0)
             
     cccv1 = coap_client.getValue(ip,'/actuators/actuator1','cccv')
     cccv2 = coap_client.getValue(ip,'/actuators/actuator2','cccv')
@@ -442,10 +444,14 @@ def power_check(power_to_check_against: float, relay: int, turn_off_load_after: 
             if reverse_power_thresh: 
                 if prompt.prompt("Power Measure Fail",f"Power Measure Fail. Measured {power} watts. Expected at most {power_to_check_against} watts. Continue the test?"):
                     pass
+                else: 
+                    misc.updateLog('testLoad',relay,'fail excessive power',power)
+                    return False
             else: 
                 if prompt.prompt("Power Measure Fail",f"Power Measure Fail. Measured {power} watts. Expected at least {power_to_check_against} watts. Continue the test?"):
                     pass
-                else: # misc.updateLog('testLoad',relay,'fail power',power)
+                else:
+                    misc.updateLog('testLoad',relay,'fail inadequate power',power)
                     return False
             power = load.measurePower()
 
@@ -472,23 +478,133 @@ def power_check(power_to_check_against: float, relay: int, turn_off_load_after: 
     if turn_off_load_after: load.setOutputOn(False)
     return True
 
+def moving_power_check(
+    min_power_thresh: float = None,
+    max_power_thresh: float = None,
+    hold_time_seconds: float = 5.0,
+    measure_every_seconds: float = 0.25,
+    relay: int = 1,
+    turn_off_load_after: bool = True):
+    """Measures power every set interval of time (measure_every_seconds) over a set amount of time (hold_time_seconds). 
+    \nThen, check the average power measured. If it's below expected, wait and measure again with the same method.
+    \nIf it's still inadequate, it pauses and awaits user input.
+    \nIf still inadequate, consider it a fail and turn load machine off, if input var is true.
+    \nIt will return a dictionary with the minimum measurement"""
+
+    # Once every input interval, measure power and add it to a list
+    # Calculate the average, and return the maximum and minimum values on that list
+    time_elapsed: float = 0.0
+    #num_measurements: int = 1
+    power_measurements: list = []
+    time.sleep(2.0)
+    while time_elapsed < hold_time_seconds:
+        try: 
+            power = load.measurePower()
+            # print(f"Measurement {num_measurements}: {power}.")
+        except load.visa.errors.VisaIOError as e:
+            print(f"Load-01 Visa IO Timeout Error: {e}")
+            # misc.updateLog('testLoad',relay,'VISA IO Fail', e)
+            return False
+        except Exception as e:
+            print(f"Unexpected error during power check: {e}")
+            return False
+
+        power_measurements.append(power)
+        print(f"\r Measurements: {power_measurements}")
+        # num_measurements += 1
+        time.sleep(measure_every_seconds)
+        time_elapsed += measure_every_seconds
+
+    middle_value = lambda nums: sorted(nums)[len(nums)//2 - (1 if len(nums)%2==0 else 0)]
+    # median_power = sorted(power_measurements)[len(power_measurements)//2 - (1 if len(power_measurements)%2==0 else 0)]
+
+    power = sum(power_measurements)/len(power_measurements)     # Get the average power from the list
+    median_power = middle_value(power_measurements)    # Get the median power from the list
+    minimum_power = min(power_measurements)                     # Get the minimum power from the list
+    maximum_power = max(power_measurements)                     # Get the maximum power from the list
+    print("Average Power: ",power)
+    print("Median Power: ",median_power)
+    print("Minimum Power: ",minimum_power)
+    print("Maximum Power: ",maximum_power)
+
+    fail_type = None
+    if min_power_thresh is not None:
+        test_average_value = power - min_power_thresh
+        test_median_value = median_power - min_power_thresh
+        if test_average_value < 0: 
+            fail_type = "average"
+            fail_power = f"Average: {power}"
+            if test_median_value < 0: 
+                fail_type += " and median"
+                fail_power += f", and Median: {median_power}"
+        elif test_median_value < 0: 
+            fail_type = "median"
+            fail_power = f"Median: {median_power}"
+        if test_average_value < 0 or test_median_value < 0: 
+            print(
+                f"Failed initial {fail_type} power test at {fail_power} watts. "
+                f"Expected at least {min_power_thresh} watts. "
+                )
+            p = prompt.abort_retry_ignore_prompt("Power Measure Fail",f"Power Measure Fail. Measured {fail_power} watts. Expected at least {min_power_thresh} watts.")
+
+    if max_power_thresh is not None:
+        test_average_value = max_power_thresh - power
+        test_median_value = max_power_thresh - median_power
+        if test_average_value < 0: 
+            fail_type = "average"
+            fail_power = f"Average: {power}"
+            if test_median_value < 0: 
+                fail_type += " and median"
+                fail_power += f", and Median: {median_power}"
+        elif test_median_value < 0: 
+            fail_type = "median"
+            fail_power = f"Median: {median_power}"
+        if test_average_value < 0 or test_median_value < 0: 
+            print(
+                f"Failed initial {fail_type} power test at {fail_power} watts. "
+                f"Expected at most {max_power_thresh} watts. "
+                )
+            p = prompt.abort_retry_ignore_prompt("Power Measure Fail",f"Power Measure Fail. Measured {fail_power} watts. Expected at most {max_power_thresh} watts.")
+
+    #print(test_average_value,test_median_value)
+
+    if fail_type: 
+        if p == "abort": 
+            print("\nAbort was selected. Process ended.")
+            sys.exit()
+        elif p == "retry":
+            print("Retrying...")
+            time.sleep(3.0)
+            moving_power_check(min_power_thresh, max_power_thresh, hold_time_seconds, measure_every_seconds, relay, turn_off_load_after)
+        elif p == "ignore":
+            load.setOutputOn(False)
+            return False
+
+    misc.updateLog('testLoad',relay,'pass power',power)
+    if turn_off_load_after: load.setOutputOn(False)
+    return True
+
 def testLoad(test_load):
     ran_once : bool = False
 
-    power_threshold: float = 0.0        # Comes from test parameters, power measured checks against this value
+    # power_threshold: float = 0.0        # Comes from test parameters, power measured checks against this value
     turn_load_off_after: bool = True    # Whether or not to turn load machine off after a measurement is finalized
     invert_power_thresh: bool = False   # Used when checking if power is BELOW or equal to the threshold power instead of GREATER than or equal to it
 
     # Checks to see how power threshold should be compared to power measured
-    if 'below_power' in test_load:
-        invert_power_thresh = True
-        power_threshold = float(test_load['below_power'])
-    elif 'power' in test_load: 
-        invert_power_thresh = False
-        power_threshold = float(test_load['power'])
-    else: 
+    min_power = None
+    max_power = None
+    if not ('power' in test_load or 'below_power' in test_load): 
         print(f"WARNING: LOAD {test_load} HAS NO POWER THRESHOLD LISTED")
         pass
+    else:
+        min_power,max_power = None,None
+        if 'below_power' in test_load:
+            invert_power_thresh = True
+            max_power = float(test_load['below_power'])
+        if 'power' in test_load: 
+            invert_power_thresh = False
+            min_power = float(test_load['power'])
 
     if 'cccv' in test_load:
         if test_load['cccv'] != cccv_save:
@@ -546,7 +662,7 @@ def testLoad(test_load):
             dim: int = 100
             if 'dim' in test_load: dim = test_load['dim']
             coap_client.setDim(ip,3,10)
-            time.sleep(1)
+            time.sleep(1.25)
             coap_client.setDim(ip,3,dim)
 
             dim1 = coap_client.getDim(ip,1)
@@ -569,33 +685,56 @@ def testLoad(test_load):
 
             if 'CR' in test_load: load.setResistance(test_load['CR'])
             if 'CV' in test_load: load.setVoltage(test_load['CV'])
-            if 'CC' in test_load: 
-                # Unncomment this if the load machine is crappy. (Sig SDL 1000x series for instance)
+            if 'CC' in test_load: load.setCurrent(test_load['CC'])
+                # Use this for CC instead if the load machine is crappy. (Sig SDL 1000x series for instance)
                 # if test_load['CC'] > 3.5:
-                #     load.setCurrent(test_load['CC']/2)
+                #     load.setCurrent(test_load['CC']/2) # Sets load machine to half the desired value to let it catch up. 
                 #     time.sleep(0.5)
-                load.setCurrent(test_load['CC'])
+                
 
             # SET OUTPUT ON AND MEASURE POWER
-            # time.sleep(1.0)
-            if 'time_before_load_on' in test_load: time.sleep(test_load['time_before_load_on'])
-            elif 'time_before_load_on' in test_config: time.sleep(test_config['time_before_load_on'])
+            time.sleep(1.0)
+            time_before_load_on = (test_load.get('time_before_load_on') or test_config.get('time_before_load_on'))
+            if time_before_load_on is not None:
+                print("Time before load on was set in test config, delaying",time_before_load_on,"seconds.")
+                time.sleep(time_before_load_on)
+
             # Sets load output on.
             if not usbc_node_test or not ran_once: load.setOutputOn(True)  
 
-            if 'hold_load_time' in test_load: time.sleep(test_load['hold_load_time'])
-            elif 'loads' in test_config and 'hold_load_time' in test_config['loads']: 
-                loads_setting = test_config['loads']
-                time.sleep(loads_setting['hold_load_time'])
-            elif 'hold_load_time' in test_config: time.sleep(test_config['hold_load_time'])
-            time.sleep(1.0)
+            if 'MOVING' in test_load and (test_load['MOVING'] != 0 and test_load['MOVING'] != False): 
+                if 'hold_load_time' in test_load: hold_load_time = test_load['hold_load_time']
+                else: hold_load_time = 10.0
+                if 'measure_every_seconds' in test_load: measure_every_seconds = test_load['measure_every_seconds']
+                else: measure_every_seconds = 1.0
+                # if 'retry' in test_load and (test_load['retry'] != 0 or test_load['retry'] != False): retry_bool = True
+                # else: retry_bool = False
 
-            # This is where power is checked
-            if invert_power_thresh: power_check(power_threshold,relay,turn_load_off_after, invert_power_thresh)
-                #if not power_check(power_threshold,relay,turn_load_off_after, invert_power_thresh): return False
-            else: power_check(power_threshold,relay,turn_load_off_after)
-                #if not power_check(power_threshold,relay,turn_load_off_after): return False
+                # if invert_power_thresh: moving_power_check(power_threshold,hold_load_time,measure_every_seconds,relay,turn_load_off_after, invert_power_thresh)
+                # else: moving_power_check(power_threshold,hold_load_time,measure_every_seconds,relay,turn_load_off_after,False,retry_bool)
+                moving_power_check(
+                    min_power_thresh = min_power,
+                    max_power_thresh = max_power,
+                    hold_time_seconds = hold_load_time,
+                    measure_every_seconds = measure_every_seconds,
+                    relay = relay,
+                    turn_off_load_after = turn_load_off_after
+                )
+            else:
+                if 'hold_load_time' in test_load: time.sleep(test_load['hold_load_time'])
+                elif 'loads' in test_config and 'hold_load_time' in test_config['loads']: 
+                    loads_setting = test_config['loads']
+                    time.sleep(loads_setting['hold_load_time'])
+                elif 'hold_load_time' in test_config: time.sleep(test_config['hold_load_time'])
+                time.sleep(1.0)
+
+                # This is where power is checked
+                if invert_power_thresh: power_check(min_power,relay,turn_load_off_after, invert_power_thresh)
+                    #if not power_check(power_threshold,relay,turn_load_off_after, invert_power_thresh): return False
+                else: power_check(min_power,relay,turn_load_off_after)
+                    #if not power_check(power_threshold,relay,turn_load_off_after): return False
                 
+                    
             ran_once = True
         return True
     
@@ -783,20 +922,24 @@ def testBatteryLoad(upper_load,lower_load,key,wait_time):
     time.sleep(1)
     coap_client.setDim(ip,3,100)
     
-    misc.send_test_prompt(key,f"Press and hold switch test button. Then press {key} on keyboard when ready.", "Keep button held.")
+    # misc.send_test_prompt(key,f"Press and hold switch test button. Then press {key} on keyboard when ready.", "Keep button held.")
+    if prompt.prompt("Switch Test Button", "Press and hold switch test button. Select 'Okay' to continue or 'Cancel' to end test."): 
+        print("Keep button held")
+    else: return False
 
     time.sleep(wait_time)
     if not testLoad(lower_load): 
         return False
     print("Release button")
     time.sleep(5.0)
+    coap_client.setDim(ip,3,100)
     if not testLoad(upper_load):
         return False
     
 
 # TESTING FEATURE
     coap_client.setDim(ip,3,0)
-    if not testCCCV(255): #Replaced cv 0
+    if not testCCCV(255): # Replaced cv 0
         return False
     #if not testCCCV(0): 
         #return False
@@ -819,7 +962,7 @@ def testBatteryLoad(upper_load,lower_load,key,wait_time):
         return False
     if not testMAXW(test_config['maxw']): 
         return False
-    coap_client.setDim(ip,3,100)
+    # coap_client.setDim(ip,3,100)
     if not testLoad(upper_load): 
         return False
 
@@ -1020,7 +1163,7 @@ def testRS485():
     #misc.send_test_prompt(misc.key,f"Verify RS485 communication was successful. Press {misc.key} if it passed and 'Esc' if it failed.", "")
     if prompt.prompt("RS485 Testing", "Check the console to see if RS485 communication was successful. Did it pass?"):
         return True
-    return False
+    else: return False
 
 def runTest():
     global device
@@ -1075,7 +1218,7 @@ def runTest():
 
     elif usbc_node_test: print("Initializing USBC Node Test")
     elif battery_backup_test: 
-        #device = 'Battery Backup'
+        #device = 'Battery-Backup'
         mac_address = 'N/A'
         print("Initializing battery backup test")
 
@@ -1266,10 +1409,10 @@ def start():
         updateState('start','failed - cannot connect to database','Failed','Cannot connect to database')
         return False
     if not parse_general_settings():
-        updateState('start','failed - cannot load general_settings.yaml','Failed','Cannot connect to database')
+        updateState('start','failed - cannot load general_settings.yaml','Failed','Cannot parse settings')
         return False
     if not load_test_config():
-        updateState('start','failed - cannot load test.yaml','Failed','Cannot load test.yaml')
+        updateState('start','failed - cannot load test yaml','Failed','Cannot load test yaml')
         return False
     if not controller.open(port,baud,timeout):
     #if not controller.open_device("ARDUINO_NANO"): # Feature for future
@@ -1355,7 +1498,7 @@ def checkCustomDevice(arg):
     elif arg[:2] == 'BB':
         battery_backup_test = True
         custom_sn = arg
-        device = 'Battery Backup'
+        device = 'Battery-Backup'
         print("Recorded Serial Number will be: ", custom_sn)
 
 def checkCSV(arg):
