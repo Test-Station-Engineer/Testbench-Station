@@ -5,7 +5,7 @@ from pickletools import int4
 import controller
 import coap_client
 import load
-import defunct.database as database
+import dev.defunct.database as database
 import yaml
 import time
 import sys
@@ -15,6 +15,8 @@ import subprocess
 import os
 import csv
 import random
+
+from dataclasses import dataclass
 
 from devices import functions_misc as misc
 from devices import functions_els as els
@@ -26,47 +28,47 @@ import rs485
 
 sys.stdout.reconfigure(line_buffering=True)
 
-stop_on_failure: bool = True
-update_golden: bool = False
-require_golden_match: bool = False
-debug_print: bool = False
-dfd_match_required: bool = False
-test_id: str = '1'
-serial_number: str = ''
-custom_sn: str = ''
-mac_address: str = ''
-board_version: str = ''
+stop_on_failure: bool = False        # Whether or not to stop the test on first failure
+update_golden: bool = False         # Whether or not to update the golden firmware on code version mismatch (NO LONGER USED)
+require_golden_match: bool = False  # Whether or not to require the golden firmware to match the code version (NO LONGER USED)
+debug_print: bool = False           # Unsure if used
+dfd_match_required: bool = False    # Whether or not to require the DFD firmware to match the code version
+test_id: str = '1'          # I should remove this @ some point, it's useless
+serial_number: str = ''     # Serial number of device under test
+mac_address: str = ''       # MAC address of device under test
+board_version: str = ''     # Board version of device under test
+custom_sn: str = ''         # Custom serial number for certain devices (Unsure if still used)
 
 #port: str = '/dev/ttyUSB0'
-port: str = 'COM3'
-baud: int = 115200
-timeout: int = 0 # use RX thread
+microcontroller_port: str = 'COM3'  # The COM port for the microcontroller connection, MAKE SURE THIS IS SET IN GENERAL SETTINGS YAML
+baud: int = 115200                  # Baud rate for microcontroller connection
+microcontroller_timeout: int = 0    # timeout for connecting to microcontroller COM port (in seconds); 0 = no timeout
 
-scan_sn: bool = True # Set to false by default if we implement COM-based discovery again (cut feature unfortunately)
-database.skip_db = True
+scan_sn: bool = True        # Set to false by default if we implement COM-based discovery again (cut feature unfortunately)
+database.skip_db = True     # Database functions are defunct (NO LONGER USED) 
 
-maxw_save = None
-cccv_save = None
+maxw_save = None # CHECK IF THIS IS NECESSARY LATER
+cccv_save = None # CHECK IF THIS IS NECESSARY LATER
 
-CC_yaml: bool = False
-CV_yaml: bool = False
-CCUV_yaml: bool = False
+CC_yaml: bool = False # Generalize all devices to use the same name convention for bools and standardize the logic between them
+CV_yaml: bool = False # Instead of having a set of yaml bools that are used differently 
+CCUV_yaml: bool = False # than the already differently named [device]_test bools
 
-# DEVICE IDENTIFICATION
-mini_node_test: bool = False
+# DEVICE IDENTIFICATION (All 'test' bools are used to handle special quirks involved with an otherwise standardized test procedure)
+device: str = ''
+node_channels: int = 2              # How many channels for a node. 2 by default
+mini_node_test: bool = False        
 els_node_test: bool = False
 usbc_node_test: bool = False
-usbc_current_channel = ''
+usbc_current_channel = ''           # NEED TO GENERALIZE USBC LOAD TEST FUNCTION TO WORK WITHIN STANDARD TEST LOAD FUNCTION USING YAML
 supernode_test: bool = False
-battery_backup_test: bool = False
+battery_backup_test: bool = False   # STILL NEED TO GIVE THIS ITS OWN .PY FILE FOR DEVICE-SPECIFIC FUNCTIONS
 
 # Allows testbench to look for a device with leading digits provided in an argument and 
 # sets the serial number of that device to the serial number argument
+# NOT BEING USED CURRENTLY, CAN REMOVE
 set_sn: bool = False
 sn_leading_digits_to_set_sn: str
-
-device: str = ''
-node_channels: int = 2 # How many channels for a node. 2 by default
 
 general_settings_config = None
 scan_timeout = 0.1
@@ -77,8 +79,16 @@ test_config = None
 prompt_continue_key: str = 'DOWN'
 prompt_end_test_key: str = 'Esc'
 
+test_status: str = 'Pass'  # Overall test status, Pass by default
+test_notes: list = []
 csv_arg_file_name: str = ''
 batch_csv_file = "test_batch.csv"
+
+def updateTestNotes(*notes: float | str | None):
+    global test_notes
+    # if test_notes == '': test_notes = str(note)
+    # else: test_notes += '/' + str(note)
+    for note in notes: test_notes.append(note)
 
 def updateState(method,msg,state,description):
     print(method,msg)
@@ -174,7 +184,7 @@ def load_test_config():
     elif mini_node_test:
         file_name = os.path.join(folder_path, 'test_mini_node.yaml')
     elif battery_backup_test:
-        # device = 'Battery-Backup' # Redundant, done in CheckCustomDevice(arg)
+        device = 'Battery-Backup' # Redundant, done in CheckCustomDevice(arg)
         file_name = os.path.join(folder_path, 'test_battery_backup.yaml')
     elif supernode_test:
         if device == 'Supernode':
@@ -188,6 +198,7 @@ def load_test_config():
         file_name = os.path.join(folder_path, 'test_usbc.yaml')
     elif els_node_test: 
         device = 'ELS Node'
+        file_name = os.path.join(folder_path, "test_CC.yaml")
     else:
         file_name = os.path.join(folder_path, "test.yaml")  # default
         device = "CCUV"
@@ -313,6 +324,9 @@ def testBoardVersion(bv):
     # no set board version
     if mini_node_test: 
         if not mnode.get_board_version(ip): return False
+    if battery_backup_test:
+        global board_version
+        board_version = 'BB-R2'
     else: 
         get_bv = coap_client.getBoardVersion(ip)
         if get_bv != str(bv):
@@ -405,6 +419,14 @@ def setMux(channel: int, verbose: bool = True, delay:float = 0.25):
         count+=1
         time.sleep(delay)
 
+@dataclass
+class LoadTestResult:
+    status: bool
+    average_power: float | None
+    median_power: float | None
+    minimum_power: float | None
+    maximum_power: float | None
+
 def power_check(power_to_check_against: float, relay: int, turn_off_load_after: bool = True, reverse_power_thresh: bool = False):
     """Measures power once, then if it is below expected, it will wait and measure again.
     \nIf it's still inadequate, it will pause and await user input.
@@ -414,17 +436,17 @@ def power_check(power_to_check_against: float, relay: int, turn_off_load_after: 
     except load.visa.errors.VisaIOError as e:
         print(f"Load-01 Visa IO Timeout Error: {e}")
         # misc.updateLog('testLoad',relay,'VISA IO Fail', e)
-        return False
+        # return False
+        return LoadTestResult(False, None, None, None, None)
     except Exception as e:
         print(f"Unexpected error during power check: {e}")
-        return False
+        # return False
+        return LoadTestResult(False, None, None, None, None)
 
     # If power to check against is less than power measured, wait, then measure again. Then await the user to measure a third time
     if reverse_power_thresh: test_value = power_to_check_against - power
-    # If power measured is less than power required, wait, then measure again. Then await the user to measure a third time
     else: test_value = power - power_to_check_against
 
-    #if power < test_load['power']: 
     if test_value < 0:
         if reverse_power_thresh: print(f"Failed initial power test at {power} watts. Expected at most {power_to_check_against} watts. Awaiting new measurement...")
         else: print(f"Failed initial power test at {power} watts. Expected at least {power_to_check_against} watts. Awaiting new measurement...")
@@ -435,10 +457,8 @@ def power_check(power_to_check_against: float, relay: int, turn_off_load_after: 
         # Second Power Check
         # If power to check against is less than power measured, wait, then measure again. Then await the user to measure a third time
         if reverse_power_thresh: test_value = power_to_check_against - power
-        # If power measured is less than power required, wait, then measure again. Then await the user to measure a third time
         else: test_value = power - power_to_check_against
 
-        #if power < test_load['power']: 
         if test_value < 0:
             # misc.send_test_prompt(misc.key,f"TEST STATION PAUSED. PRESS {misc.key} TO CONTINUE.","CONTINUING TEST...")
             if reverse_power_thresh: 
@@ -446,37 +466,35 @@ def power_check(power_to_check_against: float, relay: int, turn_off_load_after: 
                     pass
                 else: 
                     misc.updateLog('testLoad',relay,'fail excessive power',power)
-                    return False
+                    # return False
+                    return LoadTestResult(False, power, None, None, None)
             else: 
                 if prompt.prompt("Power Measure Fail",f"Power Measure Fail. Measured {power} watts. Expected at least {power_to_check_against} watts. Continue the test?"):
                     pass
                 else:
                     misc.updateLog('testLoad',relay,'fail inadequate power',power)
-                    return False
+                    # return False
+                    return LoadTestResult(False, power, None, None, None)
             power = load.measurePower()
 
         # Sets load output off
         load.setOutputOn(False)
 
         # if power is less than required, fail it. Else, pass it
-        if reverse_power_thresh: 
-            test_value = power_to_check_against - power
-            #print("power_to_check_against - power_measured =",power)
-
-        else: 
-            test_value = power - power_to_check_against
-            #print("power_measured - power_to_check_against =",power)
+        if reverse_power_thresh: test_value = power_to_check_against - power
+        else: test_value = power - power_to_check_against
                 
-        #if power < test_load['power']: 
         if test_value < 0:
             misc.updateLog('testLoad',relay,'fail power',power)
-            return False
-        else: 
-            misc.updateLog('testLoad',relay,'pass power',power)
-            return True
+            # return False
+            return LoadTestResult(False, power, None, None, None)
+        # else: 
+        #     misc.updateLog('testLoad',relay,'pass power',power)
+            # return True
     misc.updateLog('testLoad',relay,'pass power',power)
     if turn_off_load_after: load.setOutputOn(False)
-    return True
+    # return True
+    return LoadTestResult(True, power, None, None, None)
 
 def moving_power_check(
     min_power_thresh: float = None,
@@ -504,10 +522,12 @@ def moving_power_check(
         except load.visa.errors.VisaIOError as e:
             print(f"Load-01 Visa IO Timeout Error: {e}")
             # misc.updateLog('testLoad',relay,'VISA IO Fail', e)
-            return False
+            # return False
+            return LoadTestResult(False, None, None, None, None)
         except Exception as e:
             print(f"Unexpected error during power check: {e}")
-            return False
+            # return False
+            return LoadTestResult(False, None, None, None, None)
 
         power_measurements.append(power)
         print(f"\r Measurements: {power_measurements}")
@@ -571,18 +591,26 @@ def moving_power_check(
     if fail_type: 
         if p == "abort": 
             print("\nAbort was selected. Process ended.")
-            sys.exit()
+            #sys.exit()
+            # return False
+            return LoadTestResult(False, power, median_power, minimum_power, maximum_power)
         elif p == "retry":
             print("Retrying...")
             time.sleep(3.0)
-            moving_power_check(min_power_thresh, max_power_thresh, hold_time_seconds, measure_every_seconds, relay, turn_off_load_after)
+            return moving_power_check(min_power_thresh, max_power_thresh, hold_time_seconds, measure_every_seconds, relay, turn_off_load_after)
         elif p == "ignore":
+            global test_status
             load.setOutputOn(False)
-            return False
+            print("Ignore was selected. Continuing test...")
+            # return False
+            test_status = 'Fail'
+            misc.updateLog('testLoad',relay,'fail power',power)
+            return LoadTestResult(True, power, median_power, minimum_power, maximum_power)
 
     misc.updateLog('testLoad',relay,'pass power',power)
     if turn_off_load_after: load.setOutputOn(False)
-    return True
+    # return True
+    return LoadTestResult(True, power, median_power, minimum_power, maximum_power)
 
 def testLoad(test_load):
     ran_once : bool = False
@@ -653,11 +681,10 @@ def testLoad(test_load):
     if ('CR' in test_load or 'CC' in test_load or 'CV' in test_load) and ('power' in test_load or 'below_power' in test_load):
 
         # SET RELAYS
+        relays = ['output1','output2']
         if battery_backup_test: relays = ['output1'] # Accounts for when you are doing a battery backup test 
-
-        elif usbc_node_test: relays = [usbc_current_channel] # usbc_current_channel is set in the test_loads function
-
-        else:
+        
+        if not usbc_node_test: 
             # Dim set happens here
             dim: int = 100
             if 'dim' in test_load: dim = test_load['dim']
@@ -675,9 +702,11 @@ def testLoad(test_load):
                 updateLog('testLoad',2,'failed to set dim on channel 2 to',dim,"Current dim:",dim2)
                 return False
 
-            relays = ['output1','output2']
+        # If USBC test   
+        else: relays = [usbc_current_channel] # usbc_current_channel is set in the test_loads function
+            
 
-        #print(relays)
+        print(relays)
 
         for relay in relays:
 
@@ -702,7 +731,7 @@ def testLoad(test_load):
             # Sets load output on.
             if not usbc_node_test or not ran_once: load.setOutputOn(True)  
 
-            if 'MOVING' in test_load and (test_load['MOVING'] != 0 and test_load['MOVING'] != False): 
+            if 'MOVING' in test_load and (test_load['MOVING'] != 0 or test_load['MOVING'] != False): 
                 if 'hold_load_time' in test_load: hold_load_time = test_load['hold_load_time']
                 else: hold_load_time = 10.0
                 if 'measure_every_seconds' in test_load: measure_every_seconds = test_load['measure_every_seconds']
@@ -712,7 +741,7 @@ def testLoad(test_load):
 
                 # if invert_power_thresh: moving_power_check(power_threshold,hold_load_time,measure_every_seconds,relay,turn_load_off_after, invert_power_thresh)
                 # else: moving_power_check(power_threshold,hold_load_time,measure_every_seconds,relay,turn_load_off_after,False,retry_bool)
-                moving_power_check(
+                result = moving_power_check(
                     min_power_thresh = min_power,
                     max_power_thresh = max_power,
                     hold_time_seconds = hold_load_time,
@@ -720,6 +749,9 @@ def testLoad(test_load):
                     relay = relay,
                     turn_off_load_after = turn_load_off_after
                 )
+                if not result.status:
+                    updateTestNotes(round(result.average_power,5))
+                    return False
             else:
                 if 'hold_load_time' in test_load: time.sleep(test_load['hold_load_time'])
                 elif 'loads' in test_config and 'hold_load_time' in test_config['loads']: 
@@ -729,13 +761,20 @@ def testLoad(test_load):
                 time.sleep(1.0)
 
                 # This is where power is checked
-                if invert_power_thresh: power_check(min_power,relay,turn_load_off_after, invert_power_thresh)
-                    #if not power_check(power_threshold,relay,turn_load_off_after, invert_power_thresh): return False
-                else: power_check(min_power,relay,turn_load_off_after)
-                    #if not power_check(power_threshold,relay,turn_load_off_after): return False
-                
+                if invert_power_thresh: 
+                    result = power_check(max_power,relay,turn_load_off_after, invert_power_thresh)
+                    if not result.status:
+                        updateTestNotes(round(result.average_power,5))
+                        return False
+                else:
+                    result = power_check(min_power,relay,turn_load_off_after)
+                    if not result.status: 
+                        updateTestNotes(round(result.average_power,5))
+                        return False
                     
+            updateTestNotes(round(result.average_power,5))    
             ran_once = True
+        
         return True
     
     if supernode_test: load.setOutputOn(False)
@@ -905,7 +944,7 @@ def testPDLine(do_test):
 
 def testBatteryLoad(upper_load,lower_load,key,wait_time):
 
-    if not testCCCV(10):
+    if not testCCCV(10): 
         return False
     coap_client.setDim(ip,3,90)
     time.sleep(1)
@@ -913,11 +952,12 @@ def testBatteryLoad(upper_load,lower_load,key,wait_time):
 
     time.sleep(wait_time)
 
-    if not testLoad(upper_load):
+    if not testLoad(upper_load): 
         return False
 
     if not testCCCV(10): 
         return False
+
     coap_client.setDim(ip,3,90)
     time.sleep(1)
     coap_client.setDim(ip,3,100)
@@ -925,7 +965,8 @@ def testBatteryLoad(upper_load,lower_load,key,wait_time):
     # misc.send_test_prompt(key,f"Press and hold switch test button. Then press {key} on keyboard when ready.", "Keep button held.")
     if prompt.prompt("Switch Test Button", "Press and hold switch test button. Select 'Okay' to continue or 'Cancel' to end test."): 
         print("Keep button held")
-    else: return False
+    else: 
+        return False
 
     time.sleep(wait_time)
     if not testLoad(lower_load): 
@@ -933,7 +974,7 @@ def testBatteryLoad(upper_load,lower_load,key,wait_time):
     print("Release button")
     time.sleep(5.0)
     coap_client.setDim(ip,3,100)
-    if not testLoad(upper_load):
+    if not testLoad(upper_load): 
         return False
     
 
@@ -969,7 +1010,7 @@ def testBatteryLoad(upper_load,lower_load,key,wait_time):
     print("Remember to unplug pink battery backup connectors when finished testing.")
     return True
 
-def USBC_test_loads(test_loads):
+def USBC_test_loads(test_loads): # TODO REFACTOR THIS TO USE testLoad FUNCTION OR PUT INTO ITS OWN THING
 
     def USBC_test_load(test_load):
         ran_once : bool = False
@@ -1171,11 +1212,14 @@ def runTest():
     global battery_backup_test
     global node_channels
 
+    global test_status
+
     if 'code_version' in test_config:
         if testCodeVersion(test_config['code_version']):
             updateState('runTest','pass - code_version','Pass','code_version')
         else:
             updateState('runTest','fail - code_version','Fail','code_version')
+            test_status = 'Fail'
             if stop_on_failure:
                 return False
 
@@ -1190,6 +1234,7 @@ def runTest():
                     updateState('runTest','pass - trigger1','Pass','trigger1')
                 else: 
                     updateState('runTest','fail - trigger1','Fail','trigger1')
+                    test_status = 'Fail'
             else: pass
 
     if 'update_db' in test_config:
@@ -1265,6 +1310,7 @@ def runTest():
             updateState('runTest','pass - subnet','Pass','subnet')
         else:
             updateState('runTest','fail - subnet','Fail','subnet')
+            test_status = 'Fail'
             if stop_on_failure:
                 return False
     if serial_number != '' or serial_number != '0':
@@ -1272,13 +1318,15 @@ def runTest():
             updateState('runTest','pass - serial_number','Pass','serial_number')
         else:
             updateState('runTest','fail - serial_number','Fail','serial_number')
+            test_status = 'Fail'
             if stop_on_failure:
                 return False
-    if board_version != '' and not supernode_test: # Fix this shit later
+    if board_version != '' and not supernode_test: # FIXME: Weird exception for supernode board version test
         if testBoardVersion(board_version):
             updateState('runTest','pass - board_version','Pass',f'board_version:{board_version}')
         else:
             updateState('runTest','fail - board_version','Fail',f'board_version:{board_version}')
+            test_status = 'Fail'
             if stop_on_failure:
                 return False
 
@@ -1287,6 +1335,7 @@ def runTest():
             updateState('runTest','pass - cccv','Pass','cccv')
         else:
             updateState('runTest','fail - cccv','Fail','cccv')
+            test_status = 'Fail'
             if stop_on_failure:
                 return False
     if 'maxw' in test_config:
@@ -1294,6 +1343,7 @@ def runTest():
             updateState('runTest','pass - maxw','Pass','maxw')
         else:
             updateState('runTest','fail - maxw','Fail','maxw')
+            test_status = 'Fail'
             if stop_on_failure:
                 return False
     if 'load' in test_config: # Fix later for toggle 0
@@ -1304,6 +1354,7 @@ def runTest():
                 updateState('runTest','pass - load','Pass','load')
             else:
                 updateState('runTest','fail - load','Fail','load')
+                test_status = 'Fail'
                 if stop_on_failure:
                     return False
         else:
@@ -1318,6 +1369,7 @@ def runTest():
                 updateState('runTest','pass - loads','Pass','loads')
             else:
                 updateState('runTest','fail - loads','Fail','loads')
+                test_status = 'Fail'
                 if stop_on_failure:
                     return False
         else:
@@ -1336,6 +1388,7 @@ def runTest():
                 updateState('runTest','pass - sensor1','Pass','sensor1')
             else:
                 updateState('runTest','fail - sensor1','Fail','sensor1')
+                test_status = 'Fail'
                 if stop_on_failure:
                     return False
         elif test_config['sensor1'] == 0 or test_config['sensor1'] == False:
@@ -1348,6 +1401,7 @@ def runTest():
                 updateState('runTest','pass - pdline','Pass','pdline')
             else:
                 updateState('runTest','fail - pdline','Fail','pdline')
+                test_status = 'Fail'
                 if stop_on_failure:
                     return False
         else: print(f"PDLINE TEST TOGGLE IS SET TO OFF {test_config['pdline']}. SKIPPING PDLINE TEST.")
@@ -1360,6 +1414,7 @@ def runTest():
             updateState('runTest','pass - battbackup','Pass','battbackup')
         else:
             updateState('runTest','fail - battbackup','Fail','battbackup')
+            test_status = 'Fail'
             if stop_on_failure:
                 return False
     if mini_node_test and 'firmware_upgrade' in test_config and test_config['firmware_upgrade']: 
@@ -1372,6 +1427,7 @@ def runTest():
             if snode.dc_in_test(): 
                 updateState('runtest','pass - dc in','Pass','dc in')
             else: 
+                test_status = 'Fail'
                 updateState('runtest','fail - dc in','Fail','dc in')
         else: 
             print("DC IN TEST TOGGLE IS SET TO OFF (0). SKIPPING DC IN TEST.")
@@ -1383,7 +1439,9 @@ def runTest():
             print("Commissioning Node")
             if commission(commission_settings): 
                 updateState('runtest','pass - commission','Pass','commission')
-            else: updateState('runtest','fail - commission','Fail','commission')
+            else: 
+                test_status = 'Fail'
+                updateState('runtest','fail - commission','Fail','commission')
         else: print("Commission settings missing or toggled off.")
 
     if 'cmd' in test_config:
@@ -1391,6 +1449,7 @@ def runTest():
             updateState('runTest','pass - cmd','Pass','cmd')
         else:
             updateState('runTest','fail - cmd','Fail','cmd')
+            test_status = 'Fail'
             if stop_on_failure:
                 return False
             
@@ -1399,6 +1458,7 @@ def runTest():
             updateState('runTest','pass - rs485','Pass','rs485')
         else:
             updateState('runTest','fail - rs485','Fail','rs485')
+            test_status = 'Fail'
             if stop_on_failure:
                 return False
             
@@ -1414,7 +1474,7 @@ def start():
     if not load_test_config():
         updateState('start','failed - cannot load test yaml','Failed','Cannot load test yaml')
         return False
-    if not controller.open(port,baud,timeout):
+    if not controller.open(microcontroller_port,baud,microcontroller_timeout):
     #if not controller.open_device("ARDUINO_NANO"): # Feature for future
         updateState('start','failed - cannot open controller port','Failed','Cannot open controller port')
         return False
@@ -1491,10 +1551,10 @@ def checkCustomDevice(arg):
         elif arg == 'supercc': device = 'Supernode CC'
     elif arg == 'els' or arg == 'ELS':
         els_node_test = True
-        device = 'ELS Node'
+        device = 'ELS-Node'
     elif arg == 'usbc':
         usbc_node_test = True
-        device = 'USBC Node'
+        device = 'USBC-Node'
     elif arg[:2] == 'BB':
         battery_backup_test = True
         custom_sn = arg
@@ -1511,64 +1571,99 @@ def checkCSV(arg):
             #print(f"NODE WILL BE RECORDED IN {csv_arg_file_name}.")
 
 def checkArg(arg):
-    return checkSkipDB(arg) or checkVerbose(arg) or checkCCCV(arg) or checkCustomDevice(arg) or checkSetSerialNumber(arg) or checkCSV(arg)
-    
-###################    
+    return checkSkipDB(arg) or checkVerbose(arg) or checkCCCV(arg) or checkCustomDevice(arg) or checkSetSerialNumber(arg) or checkCSV(arg)    
 
-def write_to_csv(csv_file_name: str, sn_to_csv = None,mac_to_csv = None, test_status: str = 'Pass'):
-    
-    # Define the folder path where the CSV files will be saved
+def write_to_csv(
+    csv_file_name: str,
+    sn_to_csv=None,
+    mac_to_csv=None,
+    test_status: str = 'Pass',
+    device: str = '',
+    board_version: str = '',
+    extra_columns: list = None  # extra columns to append
+):
     folder_path = "records"
-    
-    # Create the 'records' folder if it doesn't exist
     if not os.path.exists(folder_path):
         os.makedirs(folder_path)
 
-    # Set the full path for the CSV file inside the 'records' folder
     csv_file_name = os.path.join(folder_path, csv_file_name)
-
-    # Note to delete or rework how sn_to_cv and mac_to_csv work.
     sn_exists = False
     mac_exists = False
 
-    # Check if the CSV file exists; if not, create it
+    # Base columns
+    base_fieldnames = ['Device', 'Rev', 'Serial Number', 'MAC Address', 'Status', 'Date']
+    extra_columns = extra_columns or []
+
+    # Check if file exists
     if not os.path.isfile(csv_file_name):
+        # Create CSV with base + extra columns
+        fieldnames = base_fieldnames + [f'Extra{i+1}' for i in range(len(extra_columns))]
         with open(csv_file_name, 'w', newline='') as csvfile:
-            fieldnames = ['Device','Rev','Serial Number', 'MAC Address','Status','Date']
             writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
             writer.writeheader()
+    else:
+        # File exists, read existing header
+        with open(csv_file_name, 'r', newline='') as csvfile:
+            reader = csv.DictReader(csvfile)
+            existing_fieldnames = reader.fieldnames or base_fieldnames
 
+        # Add new ExtraX columns if missing
+        for i in range(len(extra_columns)):
+            col_name = f'Extra{i+1}'
+            if col_name not in existing_fieldnames:
+                existing_fieldnames.append(col_name)
+
+        # If header changed, rewrite the CSV to include new columns
+        if existing_fieldnames != reader.fieldnames:
+            # Read old data
+            with open(csv_file_name, 'r', newline='') as f:
+                rows = list(csv.DictReader(f))
+            # Rewrite with new header
+            with open(csv_file_name, 'w', newline='') as f:
+                writer = csv.DictWriter(f, fieldnames=existing_fieldnames)
+                writer.writeheader()
+                writer.writerows(rows)
+
+    # Check for duplicates
     with open(csv_file_name, 'r') as csvfile:
         lines = csvfile.readlines()
         for line in lines:
-            if sn_to_csv and sn_to_csv in line: 
+            if sn_to_csv and sn_to_csv in line:
                 print(f"SERIAL NUMBER ALREADY IN {csv_file_name}.")
                 sn_exists = True
-            if mac_to_csv.lower() in line.lower() and mac_to_csv != "N/A":
-                if not mac_to_csv == '' or None:
+            if mac_to_csv and mac_to_csv.lower() in line.lower() and mac_to_csv != "N/A":
+                if mac_to_csv not in ['', None]:
                     print(f"MAC ADDRESS ALREADY IN {csv_file_name}.")
                 mac_exists = True
 
+    # Append row if no duplicates
     if not sn_exists and not mac_exists:
         with open(csv_file_name, 'a', newline='') as csvfile:
-                    fieldnames = ['Device','Rev','Serial Number', 'MAC Address','Status','Date']
-                    writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
+            writer = csv.DictWriter(csvfile, fieldnames=existing_fieldnames)
+            current_time = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())
+            row_data = {
+                'Device': device,
+                'Rev': board_version, 
+                'Serial Number': sn_to_csv,
+                'MAC Address': mac_to_csv.upper() if mac_to_csv else '',
+                'Status': test_status,
+                'Date': current_time
+            } # board_version was board_version.capitalize()
 
-                    # Check if the file is empty; if yes, write the header
-                    if os.path.getsize(csv_file_name) == 0 or not lines: 
-                        print("Writing header.")
-                        writer.writeheader()
+            # Add extra columns dynamically
+            for i, val in enumerate(extra_columns):
+                row_data[f'Extra{i+1}'] = val
 
-                    current_time = str(time.strftime("%Y-%m-%d %H:%M:%S", time.localtime()))
-                    writer.writerow({'Device': device,'Rev': board_version.capitalize(), 'Serial Number': sn_to_csv, 'MAC Address': mac_to_csv.upper(), 'Status': test_status, 'Date': current_time})
+            writer.writerow(row_data)
+        print(sn_to_csv, "has been written to", csv_file_name)
+    else:
+        print("NO DATA HAS BEEN WRITTEN.")
 
-        print(sn_to_csv,"has been written to", csv_file_name)
-    else: print("NO DATA HAS BEEN WRITTEN.")
 
 ###################
 
 def main(argv, arc):
-    global test_id, serial_number, mac_address, board_version, csv_arg_file_name
+    global test_id, serial_number, mac_address, board_version
     #print(argv, arc)
     if arc > 1:
         if not checkArg(argv[1]):
@@ -1590,7 +1685,7 @@ def main(argv, arc):
 
     if start():
         updateState('main','test start','Started','Test started')
-        if runTest():
+        if runTest() and test_status != 'Fail':
             updateState('main','test end - pass','Completed','Pass')
             final_pass = True
         else:
@@ -1608,26 +1703,9 @@ def main(argv, arc):
 
     if final_pass:
         print('\nfinal - pass')
-        test_status = 'Pass'
 
-        # print("CSV Filename:",csv_arg_file_name)
-        # if "append_to_file" in test_config:
-        #     if test_config["append_to_file"] != False and test_config["append_to_file"] != 0:
-        #         if csv_arg_file_name == '': 
-        #             t = time.localtime()
-        #             csv_arg_file_name = f"{t.tm_year % 100}_{t.tm_mon}_{t.tm_mday}.csv"
-        #             # print("CSV Filename:",csv_arg_file_name)
-        #         if csv_arg_file_name == None: print("argument 'nocsv' was set, not writing to any csv file.")
-        #         else: write_to_csv(
-        #             csv_file_name=csv_arg_file_name, 
-        #             sn_to_csv=serial_number, 
-        #             mac_to_csv=mac_address,
-        #             test_status='Pass'
-        #             )
-        #     else: print("APPEND TO FILE IS SET TO FALSE. NOT WRITING TO ANY CSV.")
     else:
         print('\nfinal - fail')
-        test_status = 'Fail'
         csv_list = [
             f"fpy_{device}_{t.tm_year}.csv",
             f"fpy_{t.tm_year}.csv"
@@ -1649,9 +1727,24 @@ def main(argv, arc):
         
         for csv_file in csvs_to_write_to:
             if csv_file == batch_csv_file or csv_file == date_csv_file: 
-                write_to_csv(csv_file, serial_number, mac_address, test_status) # Need to implement custom logic for this showing exactly what passed
+                write_to_csv(
+                    csv_file_name=csv_file,
+                    device=device,
+                    board_version=board_version,
+                    sn_to_csv=serial_number, 
+                    mac_to_csv=mac_address, 
+                    test_status=test_status,
+                    extra_columns=test_notes)
             else: 
-                write_to_csv(csv_file, serial_number, mac_address, test_status)
+                #print(test_notes)
+                write_to_csv( 
+                    csv_file_name=csv_file,
+                    device=device,
+                    board_version=board_version,
+                    sn_to_csv=serial_number, 
+                    mac_to_csv=mac_address, 
+                    test_status=test_status,
+                    extra_columns=test_notes) # THESE ARE BOTH THE SAME AT THE MOMENT, IMPLEMENT LOGIC TO DIFFERENTIATE LATER
     else: print("ARGUMENT 'nocsv' WAS SET, NOT WRITING TO ANY CSV.")
     print('done')
 

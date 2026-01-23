@@ -12,11 +12,11 @@ battery_backup_loads:
 
       "MOVING": true, # Measures power as a moving avg instead of capturing just one value. Use if values jump around a lot, will take longer
       "measure_every_seconds": 0.25,
-      "retry": true,
+      # "retry": true, # No longer used
 
       "hold_load_time": 10,
-      "power": 7,
-      "below_power": 8.4
+      "power": 6.751,
+      "below_power": 8.7
   }
 
   "High Load": { 
@@ -25,7 +25,7 @@ battery_backup_loads:
 
     "MOVING": true,
     "measure_every_seconds": 0.25,
-    "retry": true,
+    # "retry": true, # No longer used
 
     "hold_load_time": 3.0,
     "power": 40

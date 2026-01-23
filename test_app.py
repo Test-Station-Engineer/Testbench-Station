@@ -32,32 +32,12 @@ if "csv_tabs" not in st.session_state:
 if "stop_flag" not in st.session_state:
     st.session_state.stop_flag = {"stop": False}
 
-if "dark_mode" not in st.session_state:                 # Create a dark mode toggle if it doesn't exist
-    st.session_state.dark_mode = False                   # and set default mode
-
-# -----------------------------
-# Helper: stream process output, has problems at the moment maintaining stream of output from the test.py script 
-# because output is buffered and not flushed to the console immediately - Drew 2026-01-02
-# -----------------------------
-# def stream_process_output(process, q, stop_flag):
-#     for line in iter(process.stdout.readline, b""):
-#         if stop_flag["stop"]:
-#             break
-#         try:
-#             decoded = line.decode("utf-8", errors="ignore")
-#         except Exception:
-#             decoded = str(line)
-#         q.put(decoded)
-#     process.stdout.close()
-
 def stream_process_output(process, q, stop_flag):
     for line in iter(process.stdout.readline, ''):  # sentinel is empty string in text mode
         if stop_flag["stop"]:
             break
         q.put(line)
     process.stdout.close()
-
-
 
 # -----------------------------
 # Helper: launch test process
@@ -160,102 +140,6 @@ def stop_test():
         finally:
             st.session_state.process = None
 
-
-# -----------------------------
-# Helper: apply theme CSS
-# -----------------------------
-def apply_theme():
-    if st.session_state.get("dark_mode", False):
-        st.markdown("""
-        <style>
-
-        /* ===== Base background + text ===== */
-        .stApp {
-            background-color: #0e1117 !important;  /* App page background (very dark navy/graphite) */
-            color: #fafafa !important;             /* Default text color across the app (near-white) */
-        }
-        .main .block-container {
-            background-color: #0e1117 !important;  /* Main content container background (matches app bg) */
-            color: #fafafa !important;             /* Main content text color */
-        }
-
-        /* ===== Sidebar ===== */
-        section[data-testid="stSidebar"] {
-            background-color: #1e1e1e !important;  /* Sidebar panel background (slightly lighter than main) */
-            color: #fafafa !important;             /* Sidebar text color */
-        }
-        section[data-testid="stSidebar"] * {
-            color: #fafafa !important;             /* Ensure all nested text/icons in sidebar are light */
-        }
-
-        /* ===== Headings / labels ===== */
-        h1, h2, h3, h4, h5, h6, label {
-            color: #fafafa !important;             /* Headings and form labels: high-contrast light text */
-        }
-
-        /* ===== Text input / textarea ===== */
-        div[data-testid="stTextInput"] input,
-        div[data-testid="stTextArea"] textarea {
-            background-color: #262730 !important;  /* Input field background (dark slate) */
-            color: #fafafa !important;             /* Input text color (light for readability) */
-            border: 1px solid #4a4a4a !important;  /* Input border (subtle gray outline) */
-        }
-
-        /* ===== Selectbox / Multiselect (BaseWeb select) ===== */
-        div[data-baseweb="select"] > div {
-            background-color: #262730 !important;  /* Select control surface (same as inputs) */
-            color: #fafafa !important;             /* Selected text value color */
-            border: 1px solid #4a4a4a !important;  /* Select border (consistent with inputs) */
-        }
-        div[data-baseweb="select"] svg {
-            fill: #fafafa !important;              /* Dropdown chevron icon color (light) */
-        }
-
-        /* ===== Buttons ===== */
-        .stButton > button {
-            background-color: #262730 !important;  /* Button background (dark slate to match inputs) */
-            color: #fafafa !important;             /* Button text color (light) */
-            border: 1px solid #4a4a4a !important;  /* Button border (subtle gray) */
-        }
-        .stButton > button:hover {
-            background-color: #3a3a3a !important;  /* Hover background (slightly lighter for feedback) */
-            border-color: #6a6a6a !important;      /* Hover border (a bit brighter for emphasis) */
-        }
-
-        /* ===== Tabs (Streamlit 1.52 structure) ===== */
-        div[data-testid="stTabs"] button {
-            background-color: #1e1e1e !important;  /* Unselected tab background (matches sidebar tone) */
-            color: #fafafa !important;             /* Tab label text color */
-        }
-        div[data-testid="stTabs"] button[aria-selected="true"] {
-            background-color: #262730 !important;  /* Selected tab background (same tone as inputs/buttons) */
-            color: #fafafa !important;             /* Selected tab text stays readable */
-        }
-
-        /* ===== DataFrames ===== */
-        div[data-testid="stDataFrame"] {
-            background-color: #262730 !important;  /* DataFrame container background (dark slate) */
-            color: #fafafa !important;             /* Default text color inside the DataFrame area */
-        }
-
-        /* ===== File Uploader ===== */
-        div[data-testid="stFileUploaderDropzone"] {
-            background-color: #ffffff !important;  /* Dropzone background (white for clear contrast cues) */
-            border-color: #cccccc !important;      /* Dropzone border (soft gray) */
-            color: #000000 !important;             /* Dropzone text/icon color (black for legibility) */
-        }
-        div[data-testid="stFileUploaderDropzone"] * {
-            color: #000000 !important;             /* Force nested elements (icons, labels) to black */
-        }
-
-        </style>
-        """, unsafe_allow_html=True)
-
-# ============================================================
-# Apply theme
-# ============================================================
-apply_theme()
-
 # ============================================================
 # Sidebar – Test parameters + CSV output selection
 # ============================================================
@@ -263,11 +147,6 @@ st.sidebar.header("Test parameters")
 
 # Theme toggle at the top
 st.sidebar.markdown("---")
-dark_mode_toggle = st.sidebar.toggle("🌙 Dark Mode", value=st.session_state.dark_mode)
-if dark_mode_toggle != st.session_state.dark_mode:
-    st.session_state.dark_mode = dark_mode_toggle
-    st.rerun()
-# End theme toggle shit
 
 # test_id = st.sidebar.text_input("Test ID")
 serial_number = st.sidebar.text_input("Serial Number")

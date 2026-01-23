@@ -1,4 +1,4 @@
-code_version: "2out v Jun  5 2025 09:30:32"  # Check to see if code version matches up with this one.
+code_version: "2out v Dec 17 2025 10:16:51"  # Check to see if code version matches up with this one.
 
 # Trigger 1 Settings
 trigger_1_test: 1                 # Will test to see if the node handles being prompted to restart
@@ -8,16 +8,21 @@ seconds_to_wait_for_restart: 8.0      # How long to wait for IP address discover
 
 # Main Test Settings
 update_db: 1                      # Runs "update_db" on the node
-cccv: 1                               # Sets desired cccv value
+cccv: 0                               # Sets desired cccv value
 maxw: 713                             # Sets max watt for load test
-hold_load_time: 2.5                   # Determines how long the load will be kept on for
+hold_load_time: 2.5 #DOESN'T WORK OUTSIDE - FIX                  # Determines how long the load will be kept on for
 
 # "load": { "CV": 40, "dim": 100, "power":60 }
 load:
   toggle: 1
+  MOVING: true
+  measure_every_seconds: 0.25
+  hold_load_time: 2.5
+
   CV: 40
   dim: 100
   power: 60
+  below_power: 85
 
 sensor1: 1                         # Toggle for sensor test
 pdline: 1                          # Toggle for wallswitch test
