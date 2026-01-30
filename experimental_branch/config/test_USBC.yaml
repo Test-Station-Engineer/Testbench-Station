@@ -1,0 +1,46 @@
+code_version: "2out v Dec  3 2025 13:58:12"
+
+# NOTE: CHANGE LOAD TEST PROCEDURE SO THAT ALL THE INSTRUCTIONS ARE STORED HERE
+# THINGS SUCH AS "TURN_LOAD_OFF_AFTER CAN CONTROL TEST_LOADS, NOT SOME SEPARATE PROCEDURE. FIX THIS"
+
+# Trigger 1 Settings
+trigger_1_test: 1
+chance_to_test_trigger_1: 100.0
+number_of_trigger_1_attempts: 1.0
+seconds_to_wait_for_restart: 8.0
+
+# Update Database
+update_db: 1
+
+# Set max watt and load time for load test.
+maxw: 713
+cccv: 3
+
+# Loads Test
+loads: 
+  toggle: 1
+  hold_load_time: 0
+  test_steps:
+    - { CC: 0.25, cccv: 3, dim: 100, turn_off_load_after: 0, power: 7.0 }
+    - { CC: 1.0, dim: 100, turn_off_load_after: 0, power: 28.0 }
+    - { CC: 2.1, dim: 100, turn_off_load_after: 0, power: 0.0 }
+    - { CC: 3.0, dim: 100, turn_off_load_after: 0, power: 0.0 }
+    - { CC: 3.5, dim: 100, turn_off_load_after: 0, power: 0.0 }
+    - { CC: 10, dim: 100, turn_off_load_after: 0, power: 0.0 }
+    - { CC: 0.25, dim: 100, turn_off_load_after: 1, power: 7.0 }
+    - { CC: 0.25, dim: 0, turn_off_load_after: 1, time_before_load_on: 3.0, below_power: 0.05 }
+
+sensor1: 1
+pdline: 1
+
+rs485: 1
+
+commission:
+  toggle: 1
+  settings:
+    "/actuators/ALL":
+      cccv: "3"
+      maxw: "713"
+      pp: 100
+
+append_to_file: 1

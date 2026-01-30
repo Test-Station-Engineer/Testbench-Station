@@ -1,0 +1,46 @@
+cxode_version: "2out v Sep 26 2024 13:21:07"
+
+cccv: 10
+
+# hold_load_time: 10
+time_before_load_on: 3.0
+maxw: 620
+battery_backup_loads:
+  "Low Load": { 
+      "CV": 39, # CR 200, CC 0.175
+      "dim": 0,
+
+      "MOVING": true, # Measures power as a moving avg instead of capturing just one value. Use if values jump around a lot, will take longer
+      "measure_every_seconds": 0.25,
+      # "retry": true, # No longer used
+
+      "hold_load_time": 10,
+      "power": 6.751,
+      "below_power": 8.7
+  }
+
+  "High Load": { 
+    "CV": 40, 
+    "dim": 100, 
+
+    "MOVING": true,
+    "measure_every_seconds": 0.25,
+    # "retry": true, # No longer used
+
+    "hold_load_time": 3.0,
+    "power": 40
+  }
+
+await_time: 7
+await_key: "down"
+
+commission:
+  toggle: 0
+  settings:
+    "/actuators/ALL":
+      maxw: "100"
+      pp: 100
+
+rs485: 1
+
+append_to_file: true

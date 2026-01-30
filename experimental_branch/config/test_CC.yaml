@@ -1,0 +1,41 @@
+cxode_version: "2out v Dec 17 2025 10:16:51"  # Check to see if code version matches up with this one.
+code_version: "2out v Nov 12 2025 16:33:06"
+
+# Trigger 1 Settings
+trigger_1_test: 1                 # Will test to see if the node handles being prompted to restart
+chance_to_test_trigger_1: 100.0       # Self explanatory. Used for sample testing. 100 means guaranteed.
+number_of_trigger_1_attempts: 1.0    # Number of times it will restart the node
+seconds_to_wait_for_restart: 8.0      # How long to wait for IP address discovery.
+
+# Main Test Settings
+update_db: 1                      # Runs "update_db" on the node
+cccv: 0                               # Sets desired cccv value
+maxw: 713                             # Sets max watt for load test
+hold_load_time: 2.5 #DOESN'T WORK OUTSIDE - FIX                  # Determines how long the load will be kept on for
+
+# "load": { "CV": 40, "dim": 100, "power":60 }
+load:
+  toggle: 1
+  MOVING: true
+  measure_every_seconds: 0.25
+  hold_load_time: 2.5
+
+  CV: 40
+  dim: 100
+  power: 60
+  below_power: 85
+
+sensor1: 1                         # Toggle for sensor test
+pdline: 1                          # Toggle for wallswitch test
+append_to_file: 1                  # csv file name/toggle. If it's a string, it assumes true and sets the name equal to string. If just true, it uses the date as the file name. If false, disables it.
+
+commission:
+  toggle: 1
+  settings:
+    "/actuators/ALL":
+      cccv: "0"
+      maxw: "100"
+      pp: 100
+      fadetime: 2000
+# cmd:
+#   - "set_dim 3 100"                   # Last command to send to node before finishing

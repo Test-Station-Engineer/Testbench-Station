@@ -1,0 +1,14 @@
+aiocoap
+cbor2==5.5.1
+tftpy
+mysql-connector-python
+pyvisa-py
+pyusb
+zeroconf
+psutil
+pyserial
+pyyaml
+keyboard
+
+pymodbus
+streamlit pandas plotly # For the web app and data handling (Originally: streamlit pandas)
