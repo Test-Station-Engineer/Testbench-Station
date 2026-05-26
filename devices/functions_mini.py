@@ -1,14 +1,14 @@
-import load
-import controller
-import coap_client
+import services.load_mach as load_mach
+import services.controller as controller
+import services.coap_client as coap_client
 import time
 
-from devices import functions_misc as misc
+from write import write
 
 input_port_safe_mode: bool = False
 defacto_load_off_state = {"CC": 0.015}
 
-key = misc.key
+key = write.key
 ip: str = ''
 test_yaml = ''
 serial_number = ''
@@ -35,12 +35,12 @@ def init(ip_address,test_configuration, serialnum):
     set_dim(ip,0,0)
     setMux(2,True)    
 
-    if not coap_client.secure_setting(ip,f'/drivers/0/actuator','cluster','test_cluster'): misc.send_test_prompt(misc.key,f'Type "set_cluster all group1" and press {misc.key} to continue.','')
-    if not coap_client.secure_setting(ip,f'/drivers/0/sensor','cluster','test_cluster'): misc.send_test_prompt(misc.key,f'Type "set_cluster all group1" and press {misc.key} to continue.','')
-    if not coap_client.secure_setting(ip,f'/drivers/0/wallswitch','cluster','test_cluster'): misc.send_test_prompt(misc.key,f'Type "set_cluster all group1" and press {misc.key} to continue.','')
+    if not coap_client.secure_setting(ip,f'/drivers/0/actuator','cluster','test_cluster'): write.send_test_prompt(write.key,f'Type "set_cluster all group1" and press {write.key} to continue.','')
+    if not coap_client.secure_setting(ip,f'/drivers/0/sensor','cluster','test_cluster'): write.send_test_prompt(write.key,f'Type "set_cluster all group1" and press {write.key} to continue.','')
+    if not coap_client.secure_setting(ip,f'/drivers/0/wallswitch','cluster','test_cluster'): write.send_test_prompt(write.key,f'Type "set_cluster all group1" and press {write.key} to continue.','')
     
-    if not coap_client.secure_setting(ip,f'/drivers/0/sensor','enable','true'): misc.send_test_prompt(misc.key,f'Type "set_sensor_enable true" in driver 0 console and press {misc.key} when it has been set.','')
-    #if not coap_client.secure_setting(ip,f'/drivers/0/wallswitch','enable','true'): misc.send_test_prompt(misc.key,f'Type "set_wallswitch_enable true" in driver 0 console and press {misc.key} when it has been set.','')
+    if not coap_client.secure_setting(ip,f'/drivers/0/sensor','enable','true'): write.send_test_prompt(write.key,f'Type "set_sensor_enable true" in driver 0 console and press {write.key} when it has been set.','')
+    #if not coap_client.secure_setting(ip,f'/drivers/0/wallswitch','enable','true'): write.send_test_prompt(write.key,f'Type "set_wallswitch_enable true" in driver 0 console and press {write.key} when it has been set.','')
 
     serial_number = serialnum
     test_yaml = test_configuration
@@ -48,7 +48,7 @@ def init(ip_address,test_configuration, serialnum):
     if 'firmware_upgrade' in test_yaml and test_yaml['firmware_upgrade']:
         if "http_server" in test_yaml: 
             http_server = test_yaml["http_server"]
-            if "http_port" in test_yaml: http_server = f"http://192.168.2.47:{test_yaml["http_port"]}/firmware"
+            if "http_port" in test_yaml: http_server = f"http://192.168.2.251:{test_yaml["http_port"]}/firmware"
         print("http-server is:",http_server)
     if 'remote_drivers' in test_yaml:
         if test_yaml['remote_drivers'] == False or test_yaml['remote_drivers'] == 0: remote_driver_exists = False
@@ -58,14 +58,14 @@ def init(ip_address,test_configuration, serialnum):
             drivers = list(range(0,remote_drivers+1))
         print(f"Remote Driver is set to {remote_driver_exists}, with there being {drivers} drivers.")
     if 'mini_cp' in test_yaml: 
-        if not set_power_test(test_yaml['mini_cp']): misc.updateLog('set_power_test','fail')
-        else: misc.updateLog('set_power_test','pass')
+        if not set_power_test(test_yaml['mini_cp']): write.updateLog('set_power_test','fail')
+        else: write.updateLog('set_power_test','pass')
     if 'mini_cv' in test_yaml: 
-        if not set_voltage_test(test_yaml['mini_cv']): misc.updateLog('set_voltage_test','fail')
-        else: misc.updateLog('set_voltage_test','pass')
+        if not set_voltage_test(test_yaml['mini_cv']): write.updateLog('set_voltage_test','fail')
+        else: write.updateLog('set_voltage_test','pass')
     if 'mini_cc' in test_yaml: 
-        if not set_current_test(test_yaml['mini_cc']): misc.updateLog('set_current_test','fail')
-        else: misc.updateLog('set_current_test','pass')
+        if not set_current_test(test_yaml['mini_cc']): write.updateLog('set_current_test','fail')
+        else: write.updateLog('set_current_test','pass')
 
     input_configuration()
 
@@ -161,16 +161,16 @@ def load_test(test_load):
         \nIf it's still inadequate, it will pause and await user input.
         \nIf still inadequate, it will fail and turn load machine off, if input var is true."""
 
-        power = load.measurePower()
+        power = load_mach.measurePower()
 
         # If power measured is less than required, wait, then measure again. Then await the user to measure a third time
         if power < test_load['power']: 
             print("Failed initial power test at",power,"watts. Awaiting new measurement.")
             time.sleep(3.0)
-            power = load.measurePower()
+            power = load_mach.measurePower()
             if power < test_load['power']:
-                misc.send_test_prompt(key,f"TEST STATION PAUSED. PRESS {key} TO CONTINUE.","CONTINUING TEST.")
-                power = load.measurePower()
+                write.send_test_prompt(key,f"TEST STATION PAUSED. PRESS {key} TO CONTINUE.","CONTINUING TEST.")
+                power = load_mach.measurePower()
 
             # Sets load output to a low or off state, depending on your test configuration
             # if "defacto_load_off_state" in test_yaml:
@@ -179,25 +179,25 @@ def load_test(test_load):
             #     if "CV" in test_yaml["defacto_load_off_state"]: load.setCurrent(defacto_load_off_state["CV"])
             #     if "CR" in test_yaml["defacto_load_off_state"]: load.setCurrent(defacto_load_off_state["CR"])
             # else: load.setOutputOn(False)
-            if "defacto_load_off_state" not in test_yaml: load.setOutputOn(False)
+            if "defacto_load_off_state" not in test_yaml: load_mach.setOutputOn(False)
 
             # if power is less than required, fail it. Else, pass it
             if power < test_load['power']:
-                misc.updateLog('testLoad',relay,'fail power',power)
+                write.updateLog('testLoad',relay,'fail power',power)
                 return False
             else: 
-                misc.updateLog('testLoad',relay,'pass power',power)
+                write.updateLog('testLoad',relay,'pass power',power)
                 return True
-        misc.updateLog('testLoad',relay,'pass power',power)
+        write.updateLog('testLoad',relay,'pass power',power)
 
         # Sets load output to a low or off state, depending on your test configuration
         if turn_off_load_after:
             if "defacto_load_off_state" in test_yaml:
                 defacto_load_off_state = test_yaml["defacto_load_off_state"]
-                if "CC" in test_yaml["defacto_load_off_state"]: load.setCurrent(defacto_load_off_state["CC"])
-                if "CV" in test_yaml["defacto_load_off_state"]: load.setCurrent(defacto_load_off_state["CV"])
-                if "CR" in test_yaml["defacto_load_off_state"]: load.setCurrent(defacto_load_off_state["CR"]) 
-            else: load.setOutputOn(False)
+                if "CC" in test_yaml["defacto_load_off_state"]: load_mach.setCurrent(defacto_load_off_state["CC"])
+                if "CV" in test_yaml["defacto_load_off_state"]: load_mach.setCurrent(defacto_load_off_state["CV"])
+                if "CR" in test_yaml["defacto_load_off_state"]: load_mach.setCurrent(defacto_load_off_state["CR"]) 
+            else: load_mach.setOutputOn(False)
         return True
 
     dim: int = 100
@@ -228,16 +228,16 @@ def load_test(test_load):
             controller.setRelays(relay) 
 
             # Set load on load machine
-            if 'CR' in test_load: load.setResistance(test_load['CR'])
-            if 'CV' in test_load: load.setVoltage(test_load['CV'])
-            if 'CC' in test_load: load.setCurrent(test_load['CC'])
+            if 'CR' in test_load: load_mach.setResistance(test_load['CR'])
+            if 'CV' in test_load: load_mach.setVoltage(test_load['CV'])
+            if 'CC' in test_load: load_mach.setCurrent(test_load['CC'])
             
             # Set output on and measure power
             time.sleep(1.0)
             if 'time_before_load_on' in test_yaml: 
                 time.sleep(test_yaml['time_before_load_on'])
             
-            load.setOutputOn(True)
+            load_mach.setOutputOn(True)
             if 'hold_load_time' in test_yaml: 
                 time.sleep(test_yaml['hold_load_time'])
             time.sleep(1.0)
@@ -254,14 +254,14 @@ def loads_test(test_loads):
 
     # Sets load output off
     if "defacto_load_off_state" in test_yaml:
-        if "CC" in test_yaml["defacto_load_off_state"]: load.setCurrent(defacto_load_off_state["CC"])
-        if "CV" in test_yaml["defacto_load_off_state"]: load.setVoltage(defacto_load_off_state["CV"])
-        if "CR" in test_yaml["defacto_load_off_state"]: load.setResistance(defacto_load_off_state["CR"])
-    else: load.setOutputOn(False)
+        if "CC" in test_yaml["defacto_load_off_state"]: load_mach.setCurrent(defacto_load_off_state["CC"])
+        if "CV" in test_yaml["defacto_load_off_state"]: load_mach.setVoltage(defacto_load_off_state["CV"])
+        if "CR" in test_yaml["defacto_load_off_state"]: load_mach.setResistance(defacto_load_off_state["CR"])
+    else: load_mach.setOutputOn(False)
     if test_pass:
-        misc.updateLog('testLoads','pass')
+        write.updateLog('testLoads','pass')
         return True
-    misc.updateLog('testLoads','fail')
+    write.updateLog('testLoads','fail')
 
     return False
 
@@ -269,7 +269,7 @@ def serial_number_test(serialnum):
     get_sn = coap_client.getSN(ip)
     print("Gateway serial number is",get_sn)
     if serialnum != get_sn: 
-        misc.updateLog('testSerialNumber','fail get',get_sn)
+        write.updateLog('testSerialNumber','fail get',get_sn)
         return False
     else:
         print(serial_number)
@@ -278,7 +278,7 @@ def serial_number_test(serialnum):
 
 def remote_driver_test():
     "This is where we test the mini node's ability to generate and power a remote driver"
-    misc.send_test_prompt(key,f'This is the remote driver test. Press {key} to continue','Continuing test')
+    write.send_test_prompt(key,f'This is the remote driver test. Press {key} to continue','Continuing test')
     coap_client.getValue(ip,'/network','serial_number')
     coap_client.putValue(ip,'/driver','serial_number',serial_number)
 
@@ -313,11 +313,11 @@ def sensor_test():
     seconds: int = 0
 
 
-    if input_port_safe_mode: misc.send_test_prompt(misc.key,f'Make sure sensor is plugged in and wallswitch is unplugged. Press {misc.key} to continue','Starting sensor test...')
+    if input_port_safe_mode: write.send_test_prompt(write.key,f'Make sure sensor is plugged in and wallswitch is unplugged. Press {write.key} to continue','Starting sensor test...')
     for driver in drivers:
-        if not coap_client.secure_setting(ip,f'/drivers/{driver}/sensor','enable','true'): misc.send_test_prompt(misc.key,f'Type "set_sensor_enable true" in driver {driver} console and press {misc.key} when it has been set.','')
-        if not set_power_test(900): misc.send_test_prompt(misc.key,f'Set power manually on driver {driver} and then press {key} to continue','Continuing...')
-        # if not set_current_test(3000): misc.send_test_prompt(misc.key,f'Set current manually on driver {driver} and then press {key} to continue','Continuing...')
+        if not coap_client.secure_setting(ip,f'/drivers/{driver}/sensor','enable','true'): write.send_test_prompt(write.key,f'Type "set_sensor_enable true" in driver {driver} console and press {write.key} when it has been set.','')
+        if not set_power_test(900): write.send_test_prompt(write.key,f'Set power manually on driver {driver} and then press {key} to continue','Continuing...')
+        # if not set_current_test(3000): write.send_test_prompt(write.key,f'Set current manually on driver {driver} and then press {key} to continue','Continuing...')
 
     # coap_client.putValue(ip,'/actuators/actuator1','motdsbl','33') # enable motion, CHECK MINI NODE EQUIVALENT
 
@@ -346,16 +346,16 @@ def sensor_test():
         if seconds >= 10: break
     print("Driver 1: Dim 100 took ",seconds, " seconds.")
     if dim1 != dim_setting and dim1 == 0:
-        misc.updateLog('testSensor1','high',1,'fail set dim',dim1)
+        write.updateLog('testSensor1','high',1,'fail set dim',dim1)
         return return_sensor_test(False) # DREW note turn aux 1 off if fail
-    else: misc.updateLog('testSensor1','high','pass set dim', dim1)
+    else: write.updateLog('testSensor1','high','pass set dim', dim1)
     if remote_driver_exists:
         dim2 = get_dim(ip,1)
         print("Dim of Driver 1 is",dim2)
         if dim2 != dim_setting and dim2 == 0:
-            misc.updateLog('testSensor1','high',2,'fail set dim',dim2)
+            write.updateLog('testSensor1','high',2,'fail set dim',dim2)
             return return_sensor_test(False)
-        else: misc.updateLog('testSensor1','high','pass set dim', dim2)
+        else: write.updateLog('testSensor1','high','pass set dim', dim2)
     controller.setAux(1,False,'') # set Aux1 low, test falling edge of sensor1
     time.sleep(1.0) # wait for  event
     dim1 = get_dim(ip,0) # dim1 should be 0%
@@ -376,32 +376,34 @@ def sensor_test():
         print("Driver 2: Dim 0 took ",seconds, " seconds.")
     
     if dim1 != 0:
-        misc.updateLog('testSensor1','low',1,'fail set dim',dim1)
+        write.updateLog('testSensor1','low',1,'fail set dim',dim1)
         return return_sensor_test(False)
     elif remote_driver_exists:
         if dim2 != 0:
-            misc.updateLog('testSensor1','low',2,'fail set dim',dim2)
+            write.updateLog('testSensor1','low',2,'fail set dim',dim2)
             return return_sensor_test(False)
-        else: misc.updateLog('testSensor1','low','pass set dim', dim2)
+        else: write.updateLog('testSensor1','low','pass set dim', dim2)
     return return_sensor_test(True)
 
 def wallswitch_test(drivers):
-    if input_port_safe_mode: misc.send_test_prompt(misc.key,f'Make sure wallswitch is plugged in and sensor is unplugged. Press {misc.key} to continue','Starting wallswitch test...')
+    if input_port_safe_mode: write.send_test_prompt(write.key,f'Make sure wallswitch is plugged in and sensor is unplugged. Press {write.key} to continue','Starting wallswitch test...')
     #drivers: list = list(range(0,drivers+1))
 
+    # Before start
     print("Drivers:",drivers)
     for driver in drivers: 
-        if not coap_client.secure_setting(ip,f'/drivers/{driver}/wallswitch','enable','true'): misc.send_test_prompt(misc.key,f'Type "set_wallswitch_enable true" in driver console and press {misc.key} when it has been set.','')
+        if not coap_client.secure_setting(ip,f'/drivers/{driver}/wallswitch','enable','true'): write.send_test_prompt(write.key,f'Type "set_wallswitch_enable true" in driver console and press {write.key} when it has been set.','')
     
     time.sleep(3.0) # 2.9.4+ has a slight delay before enabling
 
     setMux(2,True)
+    ##############
 
     controller.setPush4BTNOff() # press off button, but ignore event
     for driver in drivers: set_dim(ip,driver,0)
 
     time.sleep(1.0) # CHECK TO SEE IF THIS IS NECESSARY
-    misc.updateLog('Starting PDLine Testing')
+    write.updateLog('Starting PDLine Testing')
 
     for driver in drivers:
         attempts = 0
@@ -411,9 +413,9 @@ def wallswitch_test(drivers):
             dim = get_dim(ip,driver) # dim1 should be 0%
             attempts += 1
             if dim == 100: break
-        misc.updateLog(f'Attempts taken for dim 100 on Driver {driver}:', attempts)
+        write.updateLog(f'Attempts taken for dim 100 on Driver {driver}:', attempts)
         if dim != 100:
-            misc.updateLog('testPDLine','On Driver',driver,'fail set dim',dim)
+            write.updateLog('testPDLine','On Driver',driver,'fail set dim',dim)
             return False
         
         attempts = 0
@@ -423,9 +425,9 @@ def wallswitch_test(drivers):
             dim = get_dim(ip,driver) # dim1 should be 0%
             attempts += 1
             if dim == 0: break
-        misc.updateLog(f'Attempts taken for dim 0 on Driver {driver}:', attempts)
+        write.updateLog(f'Attempts taken for dim 0 on Driver {driver}:', attempts)
         if dim != 0:
-            misc.updateLog('testPDLine','Off Driver',driver,'fail set dim',dim)
+            write.updateLog('testPDLine','Off Driver',driver,'fail set dim',dim)
             return False
 
     return True
@@ -463,28 +465,29 @@ def firmware_upgrade_test():
         coap_client.putValue(ip,'/drivers/1/ota','fetch_version',"true")
         time.sleep(wait_time)
         coap_client.putValue(ip,'/drivers/1/ota','start',"true")
-    misc.send_test_prompt()
+    write.send_test_prompt()
 
 def autotune_test():
     "This is where we test the mini node's ability to change the color of a light fixture"
-    misc.send_test_prompt(key,f'This is the remote driver test. Press {key} to continue','Continuing test')
+    write.send_test_prompt(key,f'This is the remote driver test. Press {key} to continue','Continuing test')
     coap_client.secure_setting(ip,'/drivers/0/actuator','pwm_mode','AT')
 
     coap_client.secure_setting(ip,'/drivers/0/actuator','at','3000')
-    misc.send_test_prompt(key,f'Check lights for AT 3000. Then press {key} to continue','Continuing test')
+    write.send_test_prompt(key,f'Check lights for AT 3000. Then press {key} to continue','Continuing test')
 
     coap_client.secure_setting(ip,'/drivers/0/actuator','at','4000')
-    misc.send_test_prompt(key,f'Check lights for AT 4000. Then press {key} to continue','Continuing test')
+    write.send_test_prompt(key,f'Check lights for AT 4000. Then press {key} to continue','Continuing test')
 
     coap_client.secure_setting(ip,'/drivers/0/actuator','at','5000')
-    misc.send_test_prompt(key,f'Check lights for AT 5000. Then press {key} to continue','')
+    write.send_test_prompt(key,f'Check lights for AT 5000. Then press {key} to continue','')
 
-    misc.updateLog('autotune_test','pass')
+    write.updateLog('autotune_test','pass')
 
+# TODO MOVE OVER TO CoreNodeProcedure()
 def rgbw_test(rgbw_sets: list = ["4278190080","16711680","65280","255","4294967295"]):
     pause_to_check = False
 
-    if pause_to_check: misc.send_test_prompt(key,f'This is the RGBW test. Press {key} to continue','Continuing test')
+    if pause_to_check: write.send_test_prompt(key,f'This is the RGBW test. Press {key} to continue','Continuing test')
     coap_client.secure_setting(ip,'/drivers/0/actuator','pwm_mode','RGBW_CC')
 
     set_current_test(2100)
@@ -503,9 +506,9 @@ def rgbw_test(rgbw_sets: list = ["4278190080","16711680","65280","255","42949672
         # set_dim(ip,0,100,True)
         power = get_power(ip,0)
         if power < 700: 
-            misc.send_test_prompt(key,f'Power ({power}) is too low. Either fix and press {key} or press Esc and send to troubleshooting.','')
+            write.send_test_prompt(key,f'Power ({power}) is too low. Either fix and press {key} or press Esc and send to troubleshooting.','')
         else:
-            if pause_to_check: misc.send_test_prompt(key,f'Confirm the fixture(s) match the RGBW setting: {hex(rgbw_set)}. If so, press {key} to continue.','Continuing test')
+            if pause_to_check: write.send_test_prompt(key,f'Confirm the fixture(s) match the RGBW setting: {hex(rgbw_set)}. If so, press {key} to continue.','Continuing test')
             else: 
                 print("Fixture set to",hex(rgbw_set))
                 time.sleep(3.0)

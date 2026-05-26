@@ -13,27 +13,27 @@ loxads:
   - mini_cv: 12000
     mini_cc: 3000
     dim: 100
-    CR: 3.2
+    Load_CR: 3.2
     power: 18.0
   - mini_cv: 24000
     mini_cc: 3000
     dim: 100
-    CR: 8.4 # Was / Should be 8, not 8.4. Doing this to speed it up.
+    Load_CR: 8.4 # Was / Should be 8, not 8.4. Doing this to speed it up.
     power: 58.0
   - mini_cv: 40000
     mini_cc: 2000
     dim: 100
-    CR: 22
+    Load_CR: 22
     power: 65.0
   - mini_cv: 48000    # Mini Node Voltage Setting
     mini_cc: 2000     # Mini Node Current Setting
     dim: 100
-    CR: 28            # Load Machine Setting
+    Load_CR: 28            # Load Machine Setting
     power: 67.0       # Power threshold
 
 dexfacto_load_off_state: # x in there since toggle feature hasn't been implemented yet. Remove x to enable
   toggle: 0
-  CC: 0.050  # Sets the load machine to a given value instead of toggling off
+  Load_CC: 0.050  # Sets the load machine to a given value instead of toggling off
 
 rgbw: [4278190080, 16711680, 65280, 255, 4294967295] # [red,green,blue,white,all]
 sensor1: true

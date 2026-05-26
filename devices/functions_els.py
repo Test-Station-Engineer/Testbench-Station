@@ -1,11 +1,11 @@
-import load
-import controller
-import coap_client
+import services.load_mach as load_mach
+import services.controller as controller
+import services.coap_client as coap_client
 import time
 
-from devices import functions_misc as misc
+from write import write
 
-key = misc.key
+key = write.key
 
 def load_test(ip: str,test_load, test_config):
     "This is the load test procedure for the ELS node"
@@ -18,29 +18,29 @@ def load_test(ip: str,test_load, test_config):
         \nIf it's still inadequate, it will pause and await user input.
         \nIf still inadequate, it will fail and turn load machine off, if input var is true."""
         
-        power = load.measurePower()
+        power = load_mach.measurePower()
 
         # If power measured is less than required, wait, then measure again. Then await the user to measure a third time
         if power < test_load['power']: 
             print("Failed initial power test at",power,"watts. Awaiting new measurement.")
             time.sleep(3.0)
-            power = load.measurePower()
+            power = load_mach.measurePower()
             if power < test_load['power']:
-                misc.send_test_prompt(key,f"TEST STATION PAUSED. PRESS {key} TO CONTINUE.","CONTINUING TEST.")
-                power = load.measurePower()
+                write.send_test_prompt(key,f"TEST STATION PAUSED. PRESS {key} TO CONTINUE.","CONTINUING TEST.")
+                power = load_mach.measurePower()
 
             # Sets load output off
-            load.setOutputOn(False)
+            load_mach.setOutputOn(False)
 
             # if power is less than required, fail it. Else, pass it
             if power < test_load['power']:
-                misc.updateLog('testLoad',relay,'fail power',power)
+                write.updateLog('testLoad',relay,'fail power',power)
                 return False
             else: 
-                misc.updateLog('testLoad',relay,'pass power',power)
+                write.updateLog('testLoad',relay,'pass power',power)
                 return True
-        misc.updateLog('testLoad',relay,'pass power',power)
-        if turn_off_load_after: load.setOutputOn(False)
+        write.updateLog('testLoad',relay,'pass power',power)
+        if turn_off_load_after: load_mach.setOutputOn(False)
         return True
 
     dim: int = 100
@@ -64,16 +64,16 @@ def load_test(ip: str,test_load, test_config):
             controller.setRelays(relay) 
 
             # Set load on load machine
-            if 'CR' in test_load: load.setResistance(test_load['CR'])
-            if 'CV' in test_load: load.setVoltage(test_load['CV'])
-            if 'CC' in test_load: load.setCurrent(test_load['CC'])
+            if 'CR' in test_load: load_mach.setResistance(test_load['CR'])
+            if 'CV' in test_load: load_mach.setVoltage(test_load['CV'])
+            if 'CC' in test_load: load_mach.setCurrent(test_load['CC'])
             
             # Set output on and measure power
             time.sleep(1.0)
             if 'time_before_load_on' in test_config: 
                 time.sleep(test_config['time_before_load_on'])
             
-            load.setOutputOn(True)
+            load_mach.setOutputOn(True)
             if 'hold_load_time' in test_config: 
                 time.sleep(test_config['hold_load_time'])
             time.sleep(1.0)
@@ -81,12 +81,12 @@ def load_test(ip: str,test_load, test_config):
             # power_check function, check above
             if not power_check(True): return False
 
-        misc.send_test_prompt(key,f'Press and hold EM-test button and press {key}', 'Keep holding EM-test button. Check green light, it should now blink quickly.')
-        load.setOutputOn(True)
+        write.send_test_prompt(key,f'Press and hold EM-test button and press {key}', 'Keep holding EM-test button. Check green light, it should now blink quickly.')
+        load_mach.setOutputOn(True)
         time.sleep(1.0)
         if not power_check(False): return False
-        misc.send_test_prompt(key,f'Release the EM-test button, then disconnect the PoE cable and press {key}','Keep PoE out. Check green light again. It should blink quickly.')
+        write.send_test_prompt(key,f'Release the EM-test button, then disconnect the PoE cable and press {key}','Keep PoE out. Check green light again. It should blink quickly.')
         if not power_check(True): return False
-        misc.send_test_prompt(key,f'Plug PoE cable back in and press {key}','')
+        write.send_test_prompt(key,f'Plug PoE cable back in and press {key}','')
         time.sleep(2.0)
     return True

@@ -1,5 +1,5 @@
-cxode_version: "2out v Dec 17 2025 10:16:51"  # Check to see if code version matches up with this one.
-code_version: "2out v Nov 12 2025 16:33:06"
+cxode_version: "2out v Jan 29 2026 15:54:29" # Check to see if code version matches up with this one.
+cxode_version: "2out v Feb 12 2026 16:49:54" # Check to see if code version matches up with this one.
 
 # Trigger 1 Settings
 trigger_1_test: 1                 # Will test to see if the node handles being prompted to restart
@@ -11,16 +11,15 @@ seconds_to_wait_for_restart: 8.0      # How long to wait for IP address discover
 update_db: 1                      # Runs "update_db" on the node
 cccv: 0                               # Sets desired cccv value
 maxw: 713                             # Sets max watt for load test
-hold_load_time: 2.5 #DOESN'T WORK OUTSIDE - FIX                  # Determines how long the load will be kept on for
+hold_load_time: 2.5 # DOESN'T WORK OUTSIDE - FIX                  # Determines how long the load will be kept on for
 
 # "load": { "CV": 40, "dim": 100, "power":60 }
 load:
   toggle: 1
-  MOVING: true
   measure_every_seconds: 0.25
-  hold_load_time: 2.5
+  hold_load_time: 2
 
-  CV: 40
+  Load_CV: 40
   dim: 100
   power: 60
   below_power: 85
@@ -28,6 +27,8 @@ load:
 sensor1: 1                         # Toggle for sensor test
 pdline: 1                          # Toggle for wallswitch test
 append_to_file: 1                  # csv file name/toggle. If it's a string, it assumes true and sets the name equal to string. If just true, it uses the date as the file name. If false, disables it.
+
+rs485: 1
 
 commission:
   toggle: 1

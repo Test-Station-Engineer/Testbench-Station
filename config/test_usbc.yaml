@@ -1,7 +1,4 @@
-code_version: "2out v Dec  3 2025 13:58:12"
-
-# NOTE: CHANGE LOAD TEST PROCEDURE SO THAT ALL THE INSTRUCTIONS ARE STORED HERE
-# THINGS SUCH AS "TURN_LOAD_OFF_AFTER CAN CONTROL TEST_LOADS, NOT SOME SEPARATE PROCEDURE. FIX THIS"
+code_version: "2out v Apr  6 2026 14:58:40"
 
 # Trigger 1 Settings
 trigger_1_test: 1
@@ -13,22 +10,25 @@ seconds_to_wait_for_restart: 8.0
 update_db: 1
 
 # Set max watt and load time for load test.
-maxw: 713
-cccv: 3
+
+# cccv: 3
+# maxw: 713
 
 # Loads Test
 loads: 
   toggle: 1
-  hold_load_time: 0
+  hold_load_time: 0.5
+  sweep_channel_first: True
+  turn_load_off_after: 0
   test_steps:
-    - { CC: 0.25, cccv: 3, dim: 100, turn_off_load_after: 0, power: 7.0 }
-    - { CC: 1.0, dim: 100, turn_off_load_after: 0, power: 28.0 }
-    - { CC: 2.1, dim: 100, turn_off_load_after: 0, power: 0.0 }
-    - { CC: 3.0, dim: 100, turn_off_load_after: 0, power: 0.0 }
-    - { CC: 3.5, dim: 100, turn_off_load_after: 0, power: 0.0 }
-    - { CC: 10, dim: 100, turn_off_load_after: 0, power: 0.0 }
-    - { CC: 0.25, dim: 100, turn_off_load_after: 1, power: 7.0 }
-    - { CC: 0.25, dim: 0, turn_off_load_after: 1, time_before_load_on: 3.0, below_power: 0.05 }
+    - { Load_CC: 0.25, cccv: 3, maxw: 713, dim: 100, power: 7.0 }
+    - { Load_CC: 1.0, dim: 100, power: 28.0 }
+    - { Load_CC: 2.1, dim: 100, power: 0.0 }
+    - { Load_CC: 3.0, dim: 100, power: 0.0 }
+    - { Load_CC: 3.5, dim: 100, power: 0.0 }
+    - { Load_CC: 10, dim: 100, power: 0.0 }
+    - { Load_CC: 0.25, dim: 100, turn_load_off_after: 1, power: 7.0 }
+    - { Load_CC: 0.25, dim: 0, turn_load_off_after: 1, time_before_load_on: 3.0, below_power: 0.05 }
 
 sensor1: 1
 pdline: 1

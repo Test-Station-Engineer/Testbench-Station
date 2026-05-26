@@ -1,7 +1,18 @@
 
 # context.py
 from dataclasses import dataclass, field
-from typing import Dict, List
+from typing import Dict, List, Optional
+
+try:
+    from devices.base import Device
+except ImportError:
+    print("Finish Implementing Device class before importing TestContext.")
+    pass
+try:
+    from procedures.test_procedure import TestProcedure
+except ImportError:
+    print("Finish Implementing TestProcedure class before importing TestContext.")
+    pass
 
 @dataclass
 class TestContext:
@@ -12,7 +23,7 @@ class TestContext:
     mac_address: str = ''       # MAC address of device under test
     custom_sn: str = ''         # Custom serial number for certain devices (TODO Unsure if still used)
     board_version: str = ''     # Board version of device under test
-    device: str = ''            # Device type (e.g., Mini-Node, ELS-Node, etc.) Used for CSV logging
+    device_name: str = ''       # Device type (e.g., Mini-Node, ELS-Node, etc.) Used for CSV logging
 
     # Final results
     status: str = "Pass"
@@ -20,7 +31,7 @@ class TestContext:
 
     # Environment
     ip: str = ""
-    node_channels: int = 2      # How many channels for a node. 2 by default
+    # node_channels: int = 2      # How many channels for a node. 2 by default
 
     # Device Flags (formerly globals)
     mini_node: bool = False
@@ -28,10 +39,7 @@ class TestContext:
     usbc_node: bool = False
     supernode: bool = False
     battery_backup: bool = False
-
-    # YAML configs
-    general_settings_config: Dict = field(default_factory=dict)
-    test_config: Dict = field(default_factory=dict)
+    supernode_test: bool = False
 
     # Settings
     microcontroller_port: str = 'COM3'                  # The COM port for the microcontroller connection, MAKE SURE THIS IS SET IN GENERAL SETTINGS YAML
@@ -57,24 +65,25 @@ class TestContext:
 
     maxw_save = None            # TODO CHECK IF THIS IS NECESSARY LATER
     cccv_save = None            # TODO CHECK IF THIS IS NECESSARY LATER
+    cuv_save = None             # TODO CHECK IF THIS IS NECESSARY LATER
+    cc_save = None              # TODO CHECK IF THIS IS NECESSARY LATER
+    cv_save = None              # TODO CHECK IF THIS IS NECESSARY LATER
 
-    CC_yaml: bool = False   # Generalize all devices to use the same name convention for bools and standardize the logic between them
-    CV_yaml: bool = False   # Instead of having a set of yaml bools that are used differently 
-    CCUV_yaml: bool = False # than the already differently named [device]_test bools
+    CC_2out_test: bool = False   # Generalize all devices to use the same name convention for bools and standardize the logic between them
+    CV_2out_test: bool = False   # Instead of having a set of yaml bools that are used differently 
+    CCUV_2out_test: bool = False # than the already differently named [device]_test bools
 
     # DEVICE IDENTIFICATION (All 'test' bools are used to handle special quirks involved with an otherwise standardized test procedure)
     mini_node_test: bool = False        
     els_node_test: bool = False
     usbc_node_test: bool = False
     usbc_current_channel = ''           # NEED TO GENERALIZE USBC LOAD TEST FUNCTION TO WORK WITHIN STANDARD TEST LOAD FUNCTION USING YAML
-    supernode_test: bool = False
     battery_backup_test: bool = False   # STILL NEED TO GIVE THIS ITS OWN .PY FILE FOR DEVICE-SPECIFIC FUNCTIONS
 
     # Allows testbench to look for a device with leading digits provided in an argument and 
     # sets the serial number of that device to the serial number argument
     # NOT BEING USED CURRENTLY, CAN REMOVE
     set_sn: bool = False
-    sn_leading_digits_to_set_sn: str = ''
 
     scan_timeout = 0.1
     scan_range_start = 2
@@ -87,7 +96,23 @@ class TestContext:
     test_notes: list = []
     csv_arg_file_name: str = ''
 
-    
+    # YAML configs
+    general_settings_config: Dict = field(default_factory=dict)
+    test_config: Dict = field(default_factory=dict)
+
+    # VERY IMPORTANT, THIS IS WHERE I AM STORING THE DEVICE OBJECT
+    Device: Optional[Device] = None
+    Procedure: Optional[TestProcedure] = None
+    policy: Optional[Dict[str, any]] = None
+    #
+
+    # Load Test Settings
+    current_relay: Optional[int | str] = None
+    general_load_settings: Dict[str, any] = field(default_factory=dict) 
+
+    # Input (Wallswitch/Sensor) Test Settings
+    input_safety_mode: bool = False   # Whether or not to prompt the user to connect the device to the test station before starting wall switch/sensor testing
+
     # ─────────────────────────────────────────────
     # Result Tracking
     # ─────────────────────────────────────────────

@@ -2,14 +2,14 @@
 
 #Probably newest version
 from pickletools import int4
-import controller
-import coap_client
-import load
-import dev.defunct.database as database
+import services.controller as controller
+import services.coap_client as coap_client
+import services.load_mach as load_mach
+# import dev.defunct.database as database # NOTE DATABASE REMOVED
 import yaml
 import time
 import sys
-import coap_client_scan
+import services.coap_client_scan as coap_client_scan
 import subprocess
 
 import os
@@ -18,13 +18,13 @@ import random
 
 from dataclasses import dataclass
 
-from devices import functions_misc as misc
+from write import write
 from devices import functions_els as els
-from devices import functions_supernode as snode
+from devices.obsolete import functions_supernode as snode
 from devices import functions_mini as mnode
 
-import prompt
-import rs485
+import frontend.prompt as prompt
+# import services.unused.rs485_old as rs485_old
 
 sys.stdout.reconfigure(line_buffering=True)
 
@@ -45,7 +45,7 @@ baud: int = 115200                  # Baud rate for microcontroller connection
 microcontroller_timeout: int = 0    # timeout for connecting to microcontroller COM port (in seconds); 0 = no timeout
 
 scan_sn: bool = True        # Set to false by default if we implement COM-based discovery again (cut feature unfortunately)
-database.skip_db = True     # Database functions are defunct (NO LONGER USED) 
+# database.skip_db = True     # NOTE Database functions are defunct (NO LONGER USED) 
 
 maxw_save = None # CHECK IF THIS IS NECESSARY LATER
 cccv_save = None # CHECK IF THIS IS NECESSARY LATER
@@ -96,7 +96,7 @@ def updateState(method,msg,state,description):
         "CurrentState":state,
         "Description":description
     }
-    database.updateTestTable(data, test_id)
+    # database.updateTestTable(data, test_id) # NOTE DATABASE REMOVED
 
 def updateLog(*args):
     desc = ''
@@ -107,7 +107,7 @@ def updateLog(*args):
             desc += ' '+str(arg)
     if desc != '':
         print(desc)
-        #database.updateTestLog(test_id,serial_number,board_version,desc)
+        #database.updateTestLog(test_id,serial_number,board_version,desc) # NOTE DATABASE REMOVED
 
 def load_yaml(file_path):
     """Load a YAML file safely, updating logs if successful."""
@@ -153,7 +153,7 @@ def parse_general_settings():
             COM_port = int(COM_port)
 
         print(COM_port)
-        load.res_els.append(f'ASRL{COM_port}::INSTR')
+        load_mach.res_els.append(f'ASRL{COM_port}::INSTR')
         return True
     # if 'Microcontroller COM' in general_settings_config:
     #     COM_port = general_settings_config['Microcontroller COM']
@@ -432,10 +432,10 @@ def power_check(power_to_check_against: float, relay: int, turn_off_load_after: 
     \nIf it's still inadequate, it will pause and await user input.
     \nIf still inadequate, it will fail and turn load machine off, if input var is true."""
     try:
-        power = load.measurePower()
-    except load.visa.errors.VisaIOError as e:
+        power = load_mach.measurePower()
+    except load_mach.visa.errors.VisaIOError as e:
         print(f"Load-01 Visa IO Timeout Error: {e}")
-        # misc.updateLog('testLoad',relay,'VISA IO Fail', e)
+        # write.updateLog('testLoad',relay,'VISA IO Fail', e)
         # return False
         return LoadTestResult(False, None, None, None, None)
     except Exception as e:
@@ -452,7 +452,7 @@ def power_check(power_to_check_against: float, relay: int, turn_off_load_after: 
         else: print(f"Failed initial power test at {power} watts. Expected at least {power_to_check_against} watts. Awaiting new measurement...")
 
         time.sleep(3.0)
-        power = load.measurePower()
+        power = load_mach.measurePower()
 
         # Second Power Check
         # If power to check against is less than power measured, wait, then measure again. Then await the user to measure a third time
@@ -460,39 +460,39 @@ def power_check(power_to_check_against: float, relay: int, turn_off_load_after: 
         else: test_value = power - power_to_check_against
 
         if test_value < 0:
-            # misc.send_test_prompt(misc.key,f"TEST STATION PAUSED. PRESS {misc.key} TO CONTINUE.","CONTINUING TEST...")
+            # write.send_test_prompt(write.key,f"TEST STATION PAUSED. PRESS {write.key} TO CONTINUE.","CONTINUING TEST...")
             if reverse_power_thresh: 
                 if prompt.prompt("Power Measure Fail",f"Power Measure Fail. Measured {power} watts. Expected at most {power_to_check_against} watts. Continue the test?"):
                     pass
                 else: 
-                    misc.updateLog('testLoad',relay,'fail excessive power',power)
+                    write.updateLog('testLoad',relay,'fail excessive power',power)
                     # return False
                     return LoadTestResult(False, power, None, None, None)
             else: 
                 if prompt.prompt("Power Measure Fail",f"Power Measure Fail. Measured {power} watts. Expected at least {power_to_check_against} watts. Continue the test?"):
                     pass
                 else:
-                    misc.updateLog('testLoad',relay,'fail inadequate power',power)
+                    write.updateLog('testLoad',relay,'fail inadequate power',power)
                     # return False
                     return LoadTestResult(False, power, None, None, None)
-            power = load.measurePower()
+            power = load_mach.measurePower()
 
         # Sets load output off
-        load.setOutputOn(False)
+        load_mach.setOutputOn(False)
 
         # if power is less than required, fail it. Else, pass it
         if reverse_power_thresh: test_value = power_to_check_against - power
         else: test_value = power - power_to_check_against
                 
         if test_value < 0:
-            misc.updateLog('testLoad',relay,'fail power',power)
+            write.updateLog('testLoad',relay,'fail power',power)
             # return False
             return LoadTestResult(False, power, None, None, None)
         # else: 
-        #     misc.updateLog('testLoad',relay,'pass power',power)
+        #     write.updateLog('testLoad',relay,'pass power',power)
             # return True
-    misc.updateLog('testLoad',relay,'pass power',power)
-    if turn_off_load_after: load.setOutputOn(False)
+    write.updateLog('testLoad',relay,'pass power',power)
+    if turn_off_load_after: load_mach.setOutputOn(False)
     # return True
     return LoadTestResult(True, power, None, None, None)
 
@@ -515,13 +515,15 @@ def moving_power_check(
     #num_measurements: int = 1
     power_measurements: list = []
     time.sleep(2.0)
+    spinner: list[str] = ["|", "/", "-", "\\"]
+    i: int = 0
     while time_elapsed < hold_time_seconds:
         try: 
-            power = load.measurePower()
+            power = load_mach.measurePower()
             # print(f"Measurement {num_measurements}: {power}.")
-        except load.visa.errors.VisaIOError as e:
+        except load_mach.visa.errors.VisaIOError as e:
             print(f"Load-01 Visa IO Timeout Error: {e}")
-            # misc.updateLog('testLoad',relay,'VISA IO Fail', e)
+            # write.updateLog('testLoad',relay,'VISA IO Fail', e)
             # return False
             return LoadTestResult(False, None, None, None, None)
         except Exception as e:
@@ -530,14 +532,14 @@ def moving_power_check(
             return LoadTestResult(False, None, None, None, None)
 
         power_measurements.append(power)
-        print(f"\r Measurements: {power_measurements}")
+        print(f"Power: {power_measurements[-1]} W {spinner[i % 4]}", end="\r")
         # num_measurements += 1
         time.sleep(measure_every_seconds)
         time_elapsed += measure_every_seconds
+    print(power_measurements)
 
     middle_value = lambda nums: sorted(nums)[len(nums)//2 - (1 if len(nums)%2==0 else 0)]
     # median_power = sorted(power_measurements)[len(power_measurements)//2 - (1 if len(power_measurements)%2==0 else 0)]
-
     power = sum(power_measurements)/len(power_measurements)     # Get the average power from the list
     median_power = middle_value(power_measurements)    # Get the median power from the list
     minimum_power = min(power_measurements)                     # Get the minimum power from the list
@@ -600,15 +602,15 @@ def moving_power_check(
             return moving_power_check(min_power_thresh, max_power_thresh, hold_time_seconds, measure_every_seconds, relay, turn_off_load_after)
         elif p == "ignore":
             global test_status
-            load.setOutputOn(False)
+            load_mach.setOutputOn(False)
             print("Ignore was selected. Continuing test...")
             # return False
             test_status = 'Fail'
-            misc.updateLog('testLoad',relay,'fail power',power)
+            write.updateLog('testLoad',relay,'fail power',power)
             return LoadTestResult(True, power, median_power, minimum_power, maximum_power)
 
-    misc.updateLog('testLoad',relay,'pass power',power)
-    if turn_off_load_after: load.setOutputOn(False)
+    write.updateLog('testLoad',relay,'pass power',power)
+    if turn_off_load_after: load_mach.setOutputOn(False)
     # return True
     return LoadTestResult(True, power, median_power, minimum_power, maximum_power)
 
@@ -678,7 +680,7 @@ def testLoad(test_load):
 
     time.sleep(0.5)
 
-    if ('CR' in test_load or 'CC' in test_load or 'CV' in test_load) and ('power' in test_load or 'below_power' in test_load):
+    if ('Load_CR' in test_load or 'Load_CC' in test_load or 'Load_CV' in test_load) and ('power' in test_load or 'below_power' in test_load):
 
         # SET RELAYS
         relays = ['output1','output2']
@@ -712,12 +714,12 @@ def testLoad(test_load):
 
             controller.setRelays(relay)
 
-            if 'CR' in test_load: load.setResistance(test_load['CR'])
-            if 'CV' in test_load: load.setVoltage(test_load['CV'])
-            if 'CC' in test_load: load.setCurrent(test_load['CC'])
+            if 'Load_CR' in test_load: load_mach.setResistance(test_load['Load_CR'])
+            if 'Load_CV' in test_load: load_mach.setVoltage(test_load['Load_CV'])
+            if 'Load_CC' in test_load: load_mach.setCurrent(test_load['Load_CC'])
                 # Use this for CC instead if the load machine is crappy. (Sig SDL 1000x series for instance)
-                # if test_load['CC'] > 3.5:
-                #     load.setCurrent(test_load['CC']/2) # Sets load machine to half the desired value to let it catch up. 
+                # if test_load['Load_CC'] > 3.5:
+                #     load.setCurrent(test_load['Load_CC']/2) # Sets load machine to half the desired value to let it catch up. 
                 #     time.sleep(0.5)
                 
 
@@ -729,7 +731,7 @@ def testLoad(test_load):
                 time.sleep(time_before_load_on)
 
             # Sets load output on.
-            if not usbc_node_test or not ran_once: load.setOutputOn(True)  
+            if not usbc_node_test or not ran_once: load_mach.setOutputOn(True)  
 
             if 'MOVING' in test_load and (test_load['MOVING'] != 0 or test_load['MOVING'] != False): 
                 if 'hold_load_time' in test_load: hold_load_time = test_load['hold_load_time']
@@ -777,7 +779,7 @@ def testLoad(test_load):
         
         return True
     
-    if supernode_test: load.setOutputOn(False)
+    if supernode_test: load_mach.setOutputOn(False)
 
     return True
 
@@ -809,7 +811,7 @@ def testLoads(test_loads):
         for index,test_load in enumerate(test_loads):
             if not testLoad(test_load): test_pass = False
 
-    load.setOutputOn(False)
+    load_mach.setOutputOn(False)
 
     if test_pass:
         updateLog('testLoads','pass')
@@ -837,7 +839,7 @@ def testSensor1(do_test):
     # coap_client.putValue(ip,'/policy','updown','10,10,90,5') # this should be default, but change if not
     coap_client.putValue(ip,'/actuators/actuator1','motdsbl','33') # enable motion
 
-    if usbc_node_test: misc.send_test_prompt(misc.key,f'Connect control port of {device} to test station and press {misc.key}','')
+    if usbc_node_test: write.send_test_prompt(write.key,f'Connect control port of {device} to test station and press {write.key}','')
 
     
     controller.setAux(1,False,'') # set Aux1 low
@@ -892,11 +894,11 @@ def testPDLine(do_test):
         coap_client.putValue(ip,'/policy','onpol','0,100,-1,101,256') # this should be default, but change if not
         coap_client.putValue(ip,'/policy','offpol','0,0,-1,101,256') # this should be default, but change if not
     elif mini_node_test:
-        if not coap_client.secure_setting(ip,'/drivers/0/wallswitch','enable','true'): misc.send_test_prompt(misc.key,f'Type "set_wallswitch_enable true" in driver console and press {misc.key} when it has been set.','')
+        if not coap_client.secure_setting(ip,'/drivers/0/wallswitch','enable','true'): write.send_test_prompt(write.key,f'Type "set_wallswitch_enable true" in driver console and press {write.key} when it has been set.','')
         if mnode.remote_driver_exists: 
-            if not coap_client.secure_setting(ip,'/drivers/1/wallswitch','enable','true'): misc.send_test_prompt(misc.key,f'Type "set_wallswitch_enable true" in driver console and press {misc.key} when it has been set.','')
+            if not coap_client.secure_setting(ip,'/drivers/1/wallswitch','enable','true'): write.send_test_prompt(write.key,f'Type "set_wallswitch_enable true" in driver console and press {write.key} when it has been set.','')
     else: 
-        misc.send_test_prompt(misc.key,f'Connect control port of {device} to test station and press {misc.key}','')
+        write.send_test_prompt(write.key,f'Connect control port of {device} to test station and press {write.key}','')
     
     controller.setPush4BTNOff() # press off button, but ignore event
     coap_client.setDim(ip,0,0) # clear dim, in case off button did not work
@@ -962,7 +964,7 @@ def testBatteryLoad(upper_load,lower_load,key,wait_time):
     time.sleep(1)
     coap_client.setDim(ip,3,100)
     
-    # misc.send_test_prompt(key,f"Press and hold switch test button. Then press {key} on keyboard when ready.", "Keep button held.")
+    # write.send_test_prompt(key,f"Press and hold switch test button. Then press {key} on keyboard when ready.", "Keep button held.")
     if prompt.prompt("Switch Test Button", "Press and hold switch test button. Select 'Okay' to continue or 'Cancel' to end test."): 
         print("Keep button held")
     else: 
@@ -990,13 +992,13 @@ def testBatteryLoad(upper_load,lower_load,key,wait_time):
     time.sleep(wait_time*2)
 
 
-    #misc.send_test_prompt(key, f"Unplug Channel 1, then press {key}","Testing Power Loss Backup")
+    #write.send_test_prompt(key, f"Unplug Channel 1, then press {key}","Testing Power Loss Backup")
     #time.sleep(wait_time)
 
     if not testLoad(lower_load): 
         return False
     
-    #misc.send_test_prompt(key, f"Plug in Channel 1, then press {key}","Testing Normal High Load")
+    #write.send_test_prompt(key, f"Plug in Channel 1, then press {key}","Testing Normal High Load")
     #time.sleep(wait_time)
 
     if not testCCCV(10): 
@@ -1067,21 +1069,21 @@ def USBC_test_loads(test_loads): # TODO REFACTOR THIS TO USE testLoad FUNCTION O
 
             controller.setRelays(relay)
 
-            if 'CR' in test_load: load.setResistance(test_load['CR'])
-            if 'CV' in test_load: load.setVoltage(test_load['CV'])
-            if 'CC' in test_load: 
+            if 'Load_CR' in test_load: load_mach.setResistance(test_load['Load_CR'])
+            if 'Load_CV' in test_load: load_mach.setVoltage(test_load['Load_CV'])
+            if 'Load_CC' in test_load: 
                 # Unncomment this if the load machine is crappy. (Sig SDL 1000x series for instance)
-                # if test_load['CC'] > 3.5:
-                #     load.setCurrent(test_load['CC']/2)
+                # if test_load['Load_CC'] > 3.5:
+                #     load.setCurrent(test_load['Load_CC']/2)
                 #     time.sleep(0.5)
-                load.setCurrent(test_load['CC'])
+                load_mach.setCurrent(test_load['Load_CC'])
 
             # SET OUTPUT ON AND MEASURE POWER
             # time.sleep(1.0)
             if 'time_before_load_on' in test_load: time.sleep(test_load['time_before_load_on'])
             elif 'time_before_load_on' in test_config: time.sleep(test_config['time_before_load_on'])
             # Sets load output on.
-            if not usbc_node_test or not ran_once: load.setOutputOn(True)  
+            if not usbc_node_test or not ran_once: load_mach.setOutputOn(True)  
 
             if 'hold_load_time' in test_load: time.sleep(test_load['hold_load_time'])
             elif 'loads' in test_config and 'hold_load_time' in test_config['loads']: 
@@ -1100,7 +1102,7 @@ def USBC_test_loads(test_loads): # TODO REFACTOR THIS TO USE testLoad FUNCTION O
             return True
         return True
 
-    load.setOutputOn(True)
+    load_mach.setOutputOn(True)
     usbc_channels = ['output1','output2']
     for index,channel in enumerate(usbc_channels): # usbc_channels defined as a global variable. Should be 2 channels until we make USBC supernodes
         usbc_current_channel = usbc_channels[index]
@@ -1125,7 +1127,7 @@ def testBatteryBackup(batt_test_load):
         return False
 
     if "await_key" in test_config: await_key = test_config["await_key"]
-    else: await_key = misc.key
+    else: await_key = write.key
 
     if "await_time" in test_config: batt_wait_time = test_config["await_time"]
     else: batt_wait_time = 2
@@ -1199,12 +1201,12 @@ def commission(commission_settings):
     print("Commissioning complete. Writing to EEPROM...")
     return success
 
-def testRS485():
-    rs485.main()
-    #misc.send_test_prompt(misc.key,f"Verify RS485 communication was successful. Press {misc.key} if it passed and 'Esc' if it failed.", "")
-    if prompt.prompt("RS485 Testing", "Check the console to see if RS485 communication was successful. Did it pass?"):
-        return True
-    else: return False
+# def testRS485():
+#     rs485_old.main()
+#     #write.send_test_prompt(write.key,f"Verify RS485 communication was successful. Press {write.key} if it passed and 'Esc' if it failed.", "")
+#     if prompt.prompt("RS485 Testing", "Check the console to see if RS485 communication was successful. Did it pass?"):
+#         return True
+#     else: return False
 
 def runTest():
     global device
@@ -1348,7 +1350,7 @@ def runTest():
                 return False
     if 'load' in test_config: # Fix later for toggle 0
         parse_general_settings = test_config['load']
-        if misc.check_toggle(parse_general_settings):
+        if write.check_toggle(parse_general_settings):
             print("Starting Load Test")
             if testLoad(parse_general_settings):
                 updateState('runTest','pass - load','Pass','load')
@@ -1363,7 +1365,7 @@ def runTest():
 
     if 'loads' in test_config:
         loads_settings = test_config['loads']
-        if misc.check_toggle(loads_settings):
+        if write.check_toggle(loads_settings):
             print("Starting Loads Test")
             if testLoads(loads_settings['test_steps']):
                 updateState('runTest','pass - loads','Pass','loads')
@@ -1435,7 +1437,7 @@ def runTest():
     
     if 'commission' in test_config:
         commission_settings = test_config['commission']
-        if misc.check_toggle(commission_settings):
+        if write.check_toggle(commission_settings):
             print("Commissioning Node")
             if commission(commission_settings): 
                 updateState('runtest','pass - commission','Pass','commission')
@@ -1453,21 +1455,21 @@ def runTest():
             if stop_on_failure:
                 return False
             
-    if 'rs485' in test_config and (test_config['rs485'] == 1 or test_config['rs485'] == True):
-        if testRS485():
-            updateState('runTest','pass - rs485','Pass','rs485')
-        else:
-            updateState('runTest','fail - rs485','Fail','rs485')
-            test_status = 'Fail'
-            if stop_on_failure:
-                return False
+    # if 'rs485' in test_config and (test_config['rs485'] == 1 or test_config['rs485'] == True):
+    #     if testRS485():
+    #         updateState('runTest','pass - rs485','Pass','rs485')
+    #     else:
+    #         updateState('runTest','fail - rs485','Fail','rs485')
+    #         test_status = 'Fail'
+    #         if stop_on_failure:
+    #             return False
             
     return True
 
 def start():
-    if not database.connect():
-        updateState('start','failed - cannot connect to database','Failed','Cannot connect to database')
-        return False
+    # if not database.connect(): # NOTE DATABASE REMOVED
+    #     updateState('start','failed - cannot connect to database','Failed','Cannot connect to database')
+    #     return False
     if not parse_general_settings():
         updateState('start','failed - cannot load general_settings.yaml','Failed','Cannot parse settings')
         return False
@@ -1483,14 +1485,14 @@ def start():
     if not getIP():
         updateState('start','failed - cannot get node ip','Failed','Cannot get node ip')
         return False
-    if not load.open() and 'load' in test_config:
+    if not load_mach.open() and 'load' in test_config:
         updateState('start','failed - cannot open electronic load','Failed','Cannot open electronic load')
         return False
     return True
 
 def stop():
     controller.close()
-    load.close()
+    load_mach.close()
 
 def checkScanSN(arg):
     global scan_sn
@@ -1509,7 +1511,7 @@ def checkVerbose(arg):
 
 def checkSkipDB(arg):
     if arg == 'skip_db':
-        database.skip_db = True
+        # database.skip_db = True # NOTE DATABASE REMOVED
         print('skip_db')
         return True
     return False

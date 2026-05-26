@@ -1,35 +1,37 @@
-code_version: "2out v Jun  5 2025 09:30:32"
+cxode_version: "2out v Jan 29 2026 15:54:29"
+cxode_version: "2out v Feb 12 2026 16:49:54"
+
+# 1/0 or true/false to determine whether this updates db of the node
 update_db: 1
 
+# Trigger test settings - Ensures no issues occur with node restarting
 trigger_1_test: 1
 chance_to_test_trigger_1: 100.0
 number_of_trigger_1_attempts: 1.0
 seconds_to_wait_for_restart: 8.0
 
-maxw: 713
-hold_load_time": 2 # Put comment here explaining this.
-
 loads:
-  toggle: 1
-  test_steps:
-  - { "cccv": 1, "CC": 3.3, "dim": 100, "power": 36.0 }
-  - { "cccv": 2, "CC": 2.5, "dim": 100, "power": 56.0 }
-  - { "cccv": 3, "CC": 2.0, "dim": 100, "power": 66.0 }
-  - { "cccv": 4, "CC": 1.5, "dim": 100, "power": 66.0 }
-  - { cccv: 4, CC: 1.5, dim: 0, below_power: 0.05, time_before_load_on: 3.0 }
-  - { "cccv": 255, "dim": 100 }
+  toggle: 1 # 1/0 or true/false to determine whether this test occurs or not
+  hold_load_time": 2 # Applies to every load - keep load machine on for this amount of seconds before measuring
+  test_steps: # Contains each load to test
+  - { cccv: 1, Load_CC: 3.3, maxw: 713, dim: 100, hold_load_time: 1.5, power: 36.0 } 
+  - { cccv: 2, Load_CC: 2.5, dim: 100, hold_load_time: 1.5, power: 56.0 }
+  - { cccv: 3, Load_CC: 2.0, dim: 100, hold_load_time: 1.5, power: 66.0 }
+  - { cccv: 4, Load_CC: 1.5, dim: 100, hold_load_time: 1.5, power: 66.0 }
+  - { cccv: 4, Load_CC: 1.5, dim: 0, hold_load_time: 1.5, below_power: 0.05, time_before_load_on: 3.0 }
+  - { cccv: 255, dim: 100 } # This is optional
 
-sensor1: 1
-pdline: 1
+sensor1: 1 # 1/0 or true/false to determine whether to test sensor low and high or not
+pdline: 1 # 1/0 or true/false to determine whether to test wallswitch low and high or not
 
-rs485: 1
+rs485: 1 # 1/0 or true/false to determine whether to test rs485 comm line or not
 
-commission:
-  toggle: 1
+commission: # Optional commission fields to set the node to when done testing
+  toggle: 1 # 1/0 or true/false to determine whether to test sensor low and high or not
   settings:
-    "/actuators/ALL":
+    "/actuators/ALL": # ALL means set below settings for all actuators. You can set for individual actuators too, ie 1 or 2
       cccv: "255"
       maxw: "100"
       pp: 100
 
-append_to_file: true
+append_to_file: true # 1/0 or true/false to determine whether to write to csv or not
