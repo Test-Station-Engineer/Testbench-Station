@@ -1,0 +1,25 @@
+cxode_version: "2out v Jan 29 2026 15:54:29"
+
+# 1/0 or true/false to determine whether this updates db of the node
+update_db: 0
+
+# Trigger test settings - Ensures no issues occur with node restarting
+trigger_1_test: 0
+chance_to_test_trigger_1: 100.0
+number_of_trigger_1_attempts: 1.0
+seconds_to_wait_for_restart: 8.0
+
+loads: # 329 mA
+  toggle: 1 # 1/0 or true/false to determine whether this test occurs or not
+  hold_load_time": 0.5 # Applies to every load - keep load machine on for this amount of seconds before measuring
+  measure_every_seconds: 0.125
+  turn_load_off_after: false
+  test_steps: # Contains each load to test
+  - { cccv: 15, Load_CR: 88.145, maxw: 713, hold_load_time: 0.5, power: 8.50 } # 29 V / Theoretical 9.541 W / 90% 8.5869
+  - { Load_CR: 176, hold_load_time: 0.5, power: 4.25 } # 27 V / Theoretical 4.778 W / 90% 4.3
+  - { Load_CR: 352, hold_load_time: 0.5, power: 2.065 } # 27 V / Theoretical 2.389 W / 90% 2.150
+  # - { Load_CR: 82.067, dim: 100, hold_load_time: 0.5, power: 7.9947 } # 27 V / Theoretical 8.883 W / 90% 7.9947
+  # - { Load_CR: 72.948, dim: 100, hold_load_time: 0.5, power: 7.1064 } # 24 V / Theoretical 7.896 W * 90% 7.1064
+  # - { Load_CR: 57.751, dim: 100, hold_load_time: 0.5, power: 6.24 } # 19 V / Theoretical 6.251 W / 90% 5.6259
+
+append_to_file: true # 1/0 or true/false to determine whether to write to csv or not

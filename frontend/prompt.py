@@ -82,7 +82,18 @@ def multi_selection_prompt(
     for selection in selections:
         var = tk.BooleanVar(value=True)
         vars_by_selection[selection] = var
-        ttk.Checkbutton(frame, text=selection, variable=var).pack(anchor="w")
+        cb: ttk.Checkbutton = ttk.Checkbutton(
+            frame,
+            text=selection,
+            variable=var,
+            onvalue=True,
+            offvalue=False, 
+            tristatevalue=None
+        )
+        cb.pack(anchor="w")
+        
+        # cb.state(["selected"])    # ensure checked NOTE Idk if needed, because onvalue=True should do this already
+        cb.state(["!alternate"])    # remove dash state
 
     # ---- Button handlers ----
     def collect_selection():

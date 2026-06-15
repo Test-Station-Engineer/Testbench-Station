@@ -1,13 +1,13 @@
-import load
-import controller
-import coap_client
+import services.load_mach as load_mach
+import services.controller as controller
+import services.coap_client as coap_client
 import time
 
 import random # only used once
 
-from devices import functions_misc as misc
+from write import write
 
-key = misc.key
+key = write.key
 ip: str = ''
 test_yaml = ''
 
@@ -32,12 +32,12 @@ def test_cccv(cccv,channel = 0):
         for i in range(1,8):
             setting = int(coap_client.getValue(ip,f'/actuators/actuator{i}','cccv'))
             if setting != cccv:
-                misc.updateLog('testCCCV',f'fail actuator{i}',setting)
+                write.updateLog('testCCCV',f'fail actuator{i}',setting)
                 return False
     else:
         setting = int(coap_client.getValue(ip,f'/actuators/actuator{channel}','cccv'))
         if setting != cccv:
-            misc.updateLog('testCCCV',f'fail actuator{channel}',setting)
+            write.updateLog('testCCCV',f'fail actuator{channel}',setting)
             return False
     return True
 
@@ -83,29 +83,29 @@ def load_test(test_load):
         \nIf it's still inadequate, it will pause and await user input.
         \nIf still inadequate, it will fail and turn load machine off, if input var is true."""
 
-        power = load.measurePower()
+        power = load_mach.measurePower()
 
         # If power measured is less than required, wait, then measure again. Then await the user to measure a third time
         if power < test_load['power']: 
             print("Failed initial power test at",power,"watts. Awaiting new measurement.")
             time.sleep(3.0)
-            power = load.measurePower()
+            power = load_mach.measurePower()
             if power < test_load['power']:
-                misc.send_test_prompt(key,f"TEST STATION PAUSED. PRESS {key} TO CONTINUE.","CONTINUING TEST.")
-                power = load.measurePower()
+                write.send_test_prompt(key,f"TEST STATION PAUSED. PRESS {key} TO CONTINUE.","CONTINUING TEST.")
+                power = load_mach.measurePower()
 
             # Sets load output off
-            if turn_off_load_after: load.setOutputOn(False)
+            if turn_off_load_after: load_mach.setOutputOn(False)
 
             # if power is less than required, fail it. Else, pass it
             if power < test_load['power']:
-                misc.updateLog('testLoad',relay,'fail power',power)
+                write.updateLog('testLoad',relay,'fail power',power)
                 return False
             else: 
-                misc.updateLog('testLoad',relay,'pass power',power)
+                write.updateLog('testLoad',relay,'pass power',power)
                 return True
-        misc.updateLog('testLoad',relay,'pass power',power)
-        if turn_off_load_after: load.setOutputOn(False)
+        write.updateLog('testLoad',relay,'pass power',power)
+        if turn_off_load_after: load_mach.setOutputOn(False)
         return True
     ################################################################
 
@@ -114,7 +114,7 @@ def load_test(test_load):
 
     time.sleep(0.5)
                 
-    if ('CR' in test_load or 'CC' in test_load or 'CV' in test_load) and 'power' in test_load:
+    if ('Load_CR' in test_load or 'Load_CC' in test_load or 'Load_CV' in test_load) and 'power' in test_load:
 
         relays = [1,2,3,4,5,6,7,8]
 
@@ -133,13 +133,13 @@ def load_test(test_load):
                 if "cccv" in test_load: test_cccv(test_load['cccv'],relay)
                 if "maxw" in test_load: test_max_watt(test_load['maxw'])
 
-            if 'CR' in test_load: load.setResistance(test_load['CR'] * dc_in_load_multiplier)
-            if 'CV' in test_load: load.setVoltage(test_load['CV'] * dc_in_load_multiplier)
-            if 'CC' in test_load: load.setCurrent(test_load['CC'] * dc_in_load_multiplier)
+            if 'Load_CR' in test_load: load_mach.setResistance(test_load['Load_CR'] * dc_in_load_multiplier)
+            if 'Load_CV' in test_load: load_mach.setVoltage(test_load['Load_CV'] * dc_in_load_multiplier)
+            if 'Load_CC' in test_load: load_mach.setCurrent(test_load['Load_CC'] * dc_in_load_multiplier)
 
-            coap_client.secure_setting(ip,f'/sensors/input{relay}','sentype','INPUT_LH_OR_HL') # Change sensor 1 events supernode version
-            coap_client.secure_setting(ip,'/sensors/input'+str(relay),'eventlh',f"F0,{relay},{dim}")
-            coap_client.secure_setting(ip,'/sensors/input'+str(relay),'eventhl',f"F0,{relay},0") # Change sensor 1 events supernode version                    
+            coap_client.secure_setting(ip,f'/sensors/input{relay}','sentype','INPUT_LH_OR_HL',verbose=True) # Change sensor 1 events supernode version
+            coap_client.secure_setting(ip,'/sensors/input'+str(relay),'eventlh',f"F0,{relay},{dim}",verbose=True) # Change sensor 1 events supernode version
+            coap_client.secure_setting(ip,'/sensors/input'+str(relay),'eventhl',f"F0,{relay},0",verbose=True) # Change sensor 1 events supernode version                    
 
             if coap_client.getDim(ip,relay) != 0 and relay != 1: # Current channel should be 0 dim since it hasn't been set yet
                 print("Policy eventhl is not working properly for channel",relay)
@@ -170,7 +170,7 @@ def load_test(test_load):
             # time.sleep(1.0)
             if 'time_before_load_on' in test_yaml: time.sleep(test_yaml['time_before_load_on'])
 
-            load.setOutputOn(True)
+            load_mach.setOutputOn(True)
 
             if 'hold_load_time' in test_yaml: time.sleep(test_yaml['hold_load_time'])
             time.sleep(1.0)
@@ -191,10 +191,10 @@ def dc_in_test():
 
     dc_in_mode = True
 
-    misc.send_test_prompt(
-        misc.key,
+    write.send_test_prompt(
+        write.key,
         "Replace SuperNode PoE cable with data cable. Then connect the DCin cable. "
-        f"Press {misc.key} when ready",
+        f"Press {write.key} when ready",
         "Starting DCin test"
     )
     
@@ -211,11 +211,11 @@ def dc_in_test():
     else: 
         print("'Load' nor 'Loads' found in test yaml file. Using local default value.")
         local_default_loads = [
-        { "cccv": 0, "CV": 40, "dim": 100, "power": 45.0 },
-        { "cccv": 1, "CC": 5.0, "dim": 100, "power": 45.0 },
-        { "cccv": 2, "CC": 2.5, "dim": 100, "power": 45.0 },
-        { "cccv": 3, "CC": 2, "dim": 100, "power": 45.0 },
-        { "cccv": 4, "CC": 1.5, "dim": 100, "power": 45.0 }
+        { "cccv": 0, "Load_CV": 40, "dim": 100, "power": 45.0 },
+        { "cccv": 1, "Load_CC": 5.0, "dim": 100, "power": 45.0 },
+        { "cccv": 2, "Load_CC": 2.5, "dim": 100, "power": 45.0 },
+        { "cccv": 3, "Load_CC": 2, "dim": 100, "power": 45.0 },
+        { "cccv": 4, "Load_CC": 1.5, "dim": 100, "power": 45.0 }
         ]
         valid_loads = [load for load in local_default_loads if load.get('cccv') not in [1,2]]
         test_load = random.choice(local_default_loads)
@@ -230,4 +230,3 @@ def dc_in_test():
     #     return False
 
     return True
-

@@ -1,5 +1,5 @@
 # coap_client_scan.py
-import coap_client
+import services.coap_client as coap_client
 import socket
 import time
 import sys

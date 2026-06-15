@@ -86,6 +86,6 @@ def send_test_prompt(keyboard_key = key, prompt: str = f'Press {key_string} to c
 def check_toggle(test_settings: dict):
     if 'toggle' not in test_settings: 
         return True
-    elif test_settings['toggle'] == 0 or test_settings['toggle'] == False: 
+    elif test_settings['toggle'] in [0, False]: 
         return False
     return True

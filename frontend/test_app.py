@@ -58,7 +58,7 @@ def launch_test(serial_number, board_version, device_type, batch, csvs_to_write)
         # sys.executable,
         "python",
         "-u",           # unbuffered output
-        "test.py",
+        "../test.py",
         "1",
         serial_number if serial_number else "0",
         board_version if board_version else "0",

@@ -8,7 +8,12 @@ import time
 
 # resource = '/actuators/actuator1''
 # data = {'maxw':'713'}
-async def asyncPut(ip_address,resource,data,timeout = 5):
+async def asyncPut(ip_address,resource,data,timeout:float = 5):
+    # print(type(ip_address))         # TODO REMOVE LATER, ADDED FOR DEBUGGING
+    # print("IP addr is",ip_address)  # TODO REMOVE LATER, ADDED FOR DEBUGGING
+    # print(type(resource))           # TODO REMOVE LATER, ADDED FOR DEBUGGING
+    # print("Resource is",resource)   # TODO REMOVE LATER, ADDED FOR DEBUGGING
+    
     protocol = await Context.create_client_context()
     uri = 'coap://'+ip_address+'/inx'+resource
     payload = dumps({'e':data})
@@ -22,10 +27,29 @@ async def asyncPut(ip_address,resource,data,timeout = 5):
         print(f'Request timed out after {timeout} seconds')
         # IMPLEMENT AN ACTUAL TIMEOUT HANDLER HERE
     except Exception as e:
-        print('Failed to fetch resource:')
+        print(f'Failed to fetch resource: {resource}')
         print(e)
     #else:
     #    print('Result: %s\n%r'%(response.code, response.payload))
+
+async def asyncGet(ip_address,resource, timeout: float = 5.0):
+    protocol = await Context.create_client_context()
+    uri = 'coap://'+ip_address+'/inx'+resource
+    # both CON and NON work
+    #request = Message(code=GET, mtype=NON, uri=uri, content_format=ContentFormat.CBOR)
+    request = Message(code=GET, mtype=CON, uri=uri, content_format=ContentFormat.CBOR)
+    data = {}
+    try:
+        # response = await protocol.request(request).response
+        response = await asyncio.wait_for(protocol.request(request).response, timeout=timeout)
+    except Exception as e:
+        print(f'Failed to fetch resource: {resource}')
+        print(e)
+    else:
+        #print('Result: %s\n%r'%(response.code, response.payload))
+        #print('decoded payload',loads(response.payload, str_errors='replace'))
+        data = loads(response.payload, str_errors='replace')['e']
+    return data
 
 def put(ip_address,resource,data,timeout = 5):
     asyncio.run(asyncPut(ip_address,resource,data,timeout))
@@ -60,23 +84,7 @@ def putValueMcast(ip_address,resource,key,value):
     sock.sendto(request.encode(), (ip_address, port))
     sock.close() 
 
-async def asyncGet(ip_address,resource):
-    protocol = await Context.create_client_context()
-    uri = 'coap://'+ip_address+'/inx'+resource
-    # both CON and NON work
-    #request = Message(code=GET, mtype=NON, uri=uri, content_format=ContentFormat.CBOR)
-    request = Message(code=GET, mtype=CON, uri=uri, content_format=ContentFormat.CBOR)
-    data = {}
-    try:
-        response = await protocol.request(request).response
-    except Exception as e:
-        print('Failed to fetch resource:')
-        print(e)
-    else:
-        #print('Result: %s\n%r'%(response.code, response.payload))
-        #print('decoded payload',loads(response.payload, str_errors='replace'))
-        data = loads(response.payload, str_errors='replace')['e']
-    return data
+# asyncGet was here
 
 def getUcast(ip_address,resource,timeout):
     port = 5683
@@ -115,12 +123,12 @@ def getBcast(ip_address,resource):
     sock.sendto(request.encode(), (ip_address, port))
     sock.close()
 
-def get(ip_address,resource):
-    return asyncio.run(asyncGet(ip_address,resource))
+def get(ip_address,resource,timeout: float = 5.0):
+    return asyncio.run(asyncGet(ip_address,resource,timeout))
 
-def getValue(ip_address,resource,key):
+def getValue(ip_address,resource,key,timeout: float = 5.0):
     try:
-        return get(ip_address,resource)[key]
+        return get(ip_address,resource,timeout)[key]
     except:
         return ''
     
@@ -242,16 +250,17 @@ def secure_setting(ip_address: str,resource: str,key: str,value,verbose: bool = 
     for i in range(1,10):    
         #print(power)
         putValue(ip_address,resource,key,value,timeout)
+        if 'cccv' in key.lower(): time.sleep(8.0)               # Longer delay for CCCV changes, as they take longer to apply TODO FIND MORE SCALABLE SOLUTION
         get_setting = getValue(ip_address,resource,key)
         if value == get_setting:
             if verbose:
                 if i > 1: print(f"{resource,key} assigned as {get_setting}. It took {i} tries.")
                 else: print(f"{resource,key} assigned as {get_setting}.")
-            elif i > 1: print(f"WARNING: ASSIGNING {resource,key} AS {get_setting} TOOK {i} TRIES.")
+            elif i > 1: print(f"\033[91mWARNING: ASSIGNING {resource,key} AS {get_setting} TOOK {i} TRIES.\033[0m")
             return True
         time.sleep(0.25)
     if value is not get_setting:
-        print("Failed to set",key,"of resource",resource,"to",value,"after",i,"retries.")
+        print(f"\033[93mFailed to set {key} of resource {resource} to {value} after {i} retries.\033[0m")
         return False
 
 def set_lldp(ip_address,state: bool): 

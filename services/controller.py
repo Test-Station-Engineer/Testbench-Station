@@ -430,9 +430,12 @@ def setDimRetry(channel,dim,retries):
             return True
     return False
 
-def setRelays(channel):
+def setRelays(channel: int | str):
     flushLines()
-    msg = 'set_relays '+str(channel)+'\r\n'
+    if 'output' in str(channel):
+        msg = 'set_relays '+str(channel)+'\r\n'
+    else:
+        msg = f'set_relays output{str(channel)}\r\n' # NOTE Recently added, not tested
     ser.write(msg.encode('utf-8'))
     readLines(1,2000)
 
