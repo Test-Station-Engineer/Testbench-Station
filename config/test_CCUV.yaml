@@ -1,13 +1,14 @@
 cxode_version: "2out v Jan 29 2026 15:54:29"
+cxode_version: "2out v Apr 27 2026 14:43:56"
 
 # Trigger 1 Settings
-trigger_1_test: 0
+trigger_1_test: 1
 chance_to_test_trigger_1: 100.0
 number_of_trigger_1_attempts: 1.0
 seconds_to_wait_for_restart: 8.0
 
 # Update Database
-update_db: 0
+update_db: 1
 
 # Set max watt and load time for load test. Can be done within loads as well.
 # maxw: 713
@@ -15,7 +16,7 @@ hold_load_time: 1.0 # How long the load will stay on when enabled, can be set ou
 
 # Loads Test
 loads:
-  toggle: 0
+  toggle: 1
   time_before_load_on: 0.0
   sweep_channel_first: False
   test_steps:
@@ -31,7 +32,7 @@ loads:
 sensor1: 1
 pdline: 1
 
-rs485: 1
+rs485: 0
 
 commission:
   toggle: 1

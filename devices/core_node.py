@@ -6,7 +6,7 @@ from procedures.core_node_procedure import CoreNodeProcedure
 class CoreNode(Device):
 
     def __init__(self, drivers: list[int] = [0]) -> None:
-        self.drivers = drivers
+        self.drivers = drivers # NOTE Leaving room here to incorporate remote driver later, not necessary for a while.
 
     @override
     def name(self) -> str:

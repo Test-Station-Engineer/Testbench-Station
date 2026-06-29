@@ -1,5 +1,6 @@
 from dataclasses import dataclass
 from abc import ABC, abstractmethod
+from typing import override
 import time
 
 from context import TestContext
@@ -17,9 +18,11 @@ class CoreNodeProcedure(TestProcedure):
 
     def __init__(self, drivers: list[int] = [0]) -> None:
         self.drivers = drivers
+        self.mot: int = 100
+        self.vac: int = 0
 
-    def check_yaml_for_specific_procedure_tests(self) -> bool: pass
-
+    # def check_yaml_for_specific_procedure_tests(self) -> bool: pass
+    @override
     def before_load_sequence(self, ctx, test_loads): pass
     def set_relays(self,channel): controller.setRelays(channel)
     def before_load_relays(self, ctx, test_load: dict): pass
@@ -27,7 +30,19 @@ class CoreNodeProcedure(TestProcedure):
     def before_load_output_off(self, ctx, test_load: dict, step): pass
     def after_load_sequence(self, ctx): pass
 
-    def before_sensor_test(self, ctx): pass
+    def before_sensor_test(self, ctx):
+        ip=ctx.ip
+        for driver in self.drivers:
+            coap_client.secure_setting(ip,'/drivers/0/sensor','type','INPUT_LH')
+            coap_client.secure_setting(ip,'/drivers/0/policy','mot',f'F1,0,{self.mot},-1,101;')
+            coap_client.secure_setting(ip,'/drivers/0/policy','vac','F1,0,101,1,0;')
+            # coap_client.secure_setting(ip,'/drivers/0/sensor','eventlh','mot')
+            # coap_client.secure_setting(ip,'/drivers/0/sensor','eventhl','vac')
+            coap_client.secure_setting(ip,'/drivers/0/sensor','eventlh',f'F0,0,{self.mot};')
+            coap_client.secure_setting(ip,'/drivers/0/sensor','eventhl',f'F0,0,{self.vac};')
+
+            coap_client.secure_setting(ip,f'/drivers/{driver}/sensor','enable','true')
+    
     def after_sensor_test(self, ctx): pass
 
     def before_pdline_test(self, ctx): 

@@ -8,7 +8,7 @@ from frontend import prompt
 from write import write
 
 # TODO Delete later
-from devices import functions_mini as mnode
+from devices.obsolete import functions_mini as mnode
 from devices import functions_els as els
 #
 from services import controller
@@ -276,9 +276,13 @@ def moving_power_check(
             return LoadTestResult(True, avg_power, median_power, min_power, max_power)
 
 def test_single_load(ctx: TestContext, test_load: dict) -> bool:
-    """Tests a load based on parameters defined in the test load argument."""
-    Device = ctx.Device # TODO REMEMBER TO PUT THIS IN A DEVICE SELECTER AND REPLACE ctx LATER
+    """Tests a load based on parameters defined in the test load argument. 
+        \nParses single load test settings
+        \nRuns Device before_load_relays() hook.
+        \nTests the load for each relay in the device,
+        \nCalling Device hooks such as before_load_output_on and before_load_output_off."""
 
+    Device = ctx.Device # TODO REMEMBER TO PUT THIS IN A DEVICE SELECTER AND REPLACE ctx LATER
     load_test_settings: SingleLoadTestSettings = parse_single_load_test_settings(ctx, test_load)
     
     Device.procedure().before_load_relays(ctx, test_load) 
@@ -344,6 +348,12 @@ def test_single_load(ctx: TestContext, test_load: dict) -> bool:
     return True
 
 def test_loads(ctx: TestContext, test_loads: dict) -> bool:
+    """Tests all loads based on parameters defined in the 'loads' dict. 
+        \nParses general load test settings, accounts for a Device.custom_loads_test()
+        \nRuns Device before_load_sequence() hook.
+        \nRuns test_single_load() for each load in the load list,
+        \nCalling Device hooks such as before_load_output_on and before_load_output_off."""
+    
     print(f"\033[94mRunning Loads Test\033[0m")
     Device = ctx.Device
     test_pass = True
@@ -359,7 +369,8 @@ def test_loads(ctx: TestContext, test_loads: dict) -> bool:
         print(f"No loads found in test_loads. Please ensure 'loads' key contains a list of load configurations.")
         return False
     
-    if Device.procedure().custom_loads_test(ctx=ctx, test_loads=test_loads_list): return True
+    if Device.procedure().custom_loads_test(ctx=ctx, test_loads=test_loads_list): 
+        return True
 
     # # TODO DELETE LATER
     # if ctx.mini_node_test: 
@@ -367,15 +378,18 @@ def test_loads(ctx: TestContext, test_loads: dict) -> bool:
     #     if not mnode.loads_test(test_loads): return False
     #     return True
 
-    Device.procedure().before_load_sequence(ctx=ctx, test_loads=test_loads_list) # NOTE Used to be in for loop
+    Device.procedure().before_load_sequence(ctx=ctx, test_loads=test_loads) # TODO ^ Change 'test_loads' input var name to test_loads_settings to avoid confusion # NOTE Used to be in for loop
     
     all_relays = Device.relays()
+    # print(Device.name(), "relays:", all_relays)
     if ctx.general_load_settings.sweep_channel_first:
         print(f"\n\033[3;94mSWEEPING CHANNELS FIRST: Testing relays in order {Device.relays()} with all load settings, then moving to next relay.\033[0m")
         relays = all_relays
-    else: relays = [ctx.current_relay]
+    else: 
+        relays = all_relays # NOTE was [ctx.current_relay] for some reason
 
     for relay in relays:
+        # print(relay)
         # step = relay if isinstance(relay, int) else relay[-1] # TODO This is a shitty bandaid for the fact that some devices have relays listed as integers and some as strings.
         Device.procedure().set_relays(relay)
         ctx.current_relay = relay

@@ -1,4 +1,3 @@
-
 import sys
 import time
 import serial
@@ -12,13 +11,18 @@ from serial.tools import list_ports
 try:
     from . import parse_monitor as parser
 except ImportError:
-    import parse_monitor as parser
+    import services.parse_monitor as parser
 
 # =====================
 # Configuration
 # =====================
 # RS485_VID = 403
 # RS485_PID = 6001
+SHUTDOWN_MONITOR: bool = False
+MONITOR_VID = 0x303A
+MONITOR_PID = 0x1001
+MONITOR_TCP_PORT = 5555
+
 RS485_SN: str = "BG01EHULA"
 RS485_BAUD_RATE = 115200
 
@@ -74,7 +78,12 @@ def send_rs485_message(message: bytes):
 # =====================
 def main(message: bytes = RS485_MESSAGE):
     print("[rs485] Connecting to monitor...")
-    sock = parser.ensure_monitor_running()
+    sock = parser.ensure_monitor_running(
+        vid=MONITOR_VID,
+        pid=MONITOR_PID,
+        port=MONITOR_TCP_PORT,
+        detach_monitor=True,
+    )
 
     try:
         print("[rs485] Transmitting RS‑485 message...")
@@ -85,16 +94,19 @@ def main(message: bytes = RS485_MESSAGE):
 
     finally:
         try:
-            parser.shutdown_monitor(sock)
+            if SHUTDOWN_MONITOR:
+                parser.shutdown_monitor(sock)
         finally:
             sock.close()
 
     if passed:
         print("[rs485] PASS: RS‑485 message observed")
-        sys.exit(0)
+        # sys.exit(0)
+        return True
     else:
         print("[rs485] FAIL: No RS‑485 message received")
-        sys.exit(1)
+        # sys.exit(1)
+        return False
     # return passed
 
 if __name__ == "__main__":

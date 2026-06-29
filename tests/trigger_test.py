@@ -5,7 +5,7 @@ from context import TestContext
 from services import coap_client
 from services import controller
 
-def run(ctx: TestContext, number_of_times_to_restart: int, seconds_to_wait_for_restart: float) -> bool:
+def run(ctx: TestContext, number_of_times_to_restart: int = 1, seconds_to_wait_for_restart: float = 8.0) -> bool:
     # TODO Replace this with a simpler timeout check, also ip check should be different
 
     times_restarted = 0

@@ -17,7 +17,7 @@ from resources import network, actuators
 
 from tests import trigger_test, load_test, sensor_test, wall_switch_test, commission
 
-from devices import functions_mini as mnode
+from devices.obsolete import functions_mini as mnode
 
 import frontend.prompt as prompt
 
@@ -148,7 +148,7 @@ def runTest(ctx): #TODO No return type specified
         if random.random() < chance / 100:
             print("Starting Trigger 1 Test")
             attempts = cfg.get('number_of_trigger_1_attempts', 1)
-            wait_sec = cfg.get('seconds_to_wait_for_restart', 5)
+            wait_sec = cfg.get('seconds_to_wait_for_restart', 8.0)
             if trigger_test.run(ctx, attempts, wait_sec):
                 write.updateState('runTest', 'pass - trigger1', 'Pass', 'trigger1')
             else:
@@ -603,7 +603,7 @@ def write_to_csv(
         writer.writeheader()
         writer.writerows(rows)
 
-    print(sn_to_csv, "has been written to", csv_file_name)
+    print(f"\033[32m{sn_to_csv} has been written to {csv_file_name}\033[0m")
 
 ###################
 
@@ -631,9 +631,7 @@ def main(argv, arc):
 
     final_pass = False
 
-    # if start():
     if start(ctx):
-        # SYNC in case start() loaded or modified globals (settings, test_config, ip)
         write.updateState('main','test start','Started','Test started')
 
         if runTest(ctx) and ctx.test_status != 'Fail':
@@ -643,7 +641,6 @@ def main(argv, arc):
             write.updateState('main','test end - fail','Completed','Fail')
     
     stop()
-    # SYNC in case runTest() updated SN/MAC/status/notes
 
     t = time.localtime()
     date_csv_file = f"{t.tm_year % 100}_{t.tm_mon}_{t.tm_mday}.csv"

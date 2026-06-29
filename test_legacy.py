@@ -21,7 +21,7 @@ from dataclasses import dataclass
 from write import write
 from devices import functions_els as els
 from devices.obsolete import functions_supernode as snode
-from devices import functions_mini as mnode
+from devices.obsolete import functions_mini as mnode
 
 import frontend.prompt as prompt
 # import services.unused.rs485_old as rs485_old

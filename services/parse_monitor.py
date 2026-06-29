@@ -5,6 +5,9 @@ import time
 import os
 import select
 
+TARGET_VID = 0x303A # TODO Sloppy, replace later
+TARGET_PID = 0x1001 # TODO Sloppy, replace later
+
 MONITOR_HOST = "127.0.0.1"
 MONITOR_PORT = 5555
 
@@ -15,7 +18,6 @@ MONITOR_RETRY_DELAY = 0.2
 
 RECV_TIMEOUT_SEC = 3.0
 
-
 def try_connect_to_monitor() -> socket.socket | None:
     try:
         s = socket.create_connection(
@@ -23,14 +25,15 @@ def try_connect_to_monitor() -> socket.socket | None:
             timeout=0.5,
         )
 
-        s.setblocking(False)
+        s.setblocking(False) # NOTE Keep an eye on this, non-blocking mode may cause issues if not handled carefully
+        # print("Socket: ", s)
         return s
 
     except OSError as e:
         print(f"[parser] Monitor connection failed: {e}")
         return None
 
-def ensure_monitor_running(detach_monitor: bool = True) -> socket.socket:
+def ensure_monitor_running(vid = TARGET_VID, pid = TARGET_PID, port = MONITOR_PORT, serial_port: str | None = None, detach_monitor: bool = True) -> socket.socket:
     """
     Connect to existing monitor or launch one.
     """
@@ -54,8 +57,9 @@ def ensure_monitor_running(detach_monitor: bool = True) -> socket.socket:
         else:
             creationflags = (subprocess.CREATE_NEW_PROCESS_GROUP | 0)
 
-    subprocess.Popen(
-        [sys.executable, MONITOR_SCRIPT],
+    subprocess.Popen( 
+        # [sys.executable, MONITOR_SCRIPT, "--vid", f'{vid}', "--pid", f'{pid}', "--port", f'{port}', "--sn", f'{serial_port}'], 
+        [sys.executable, MONITOR_SCRIPT, "--vid", f'{vid}', "--pid", f'{pid}', "--port", f'{port}'], # NOTE Reincorporate optional serial_port later
         stdout=None,
         stderr=None,
         creationflags=creationflags,

@@ -21,11 +21,11 @@ loads:
 
   dim: 100
   test_steps:
-    - { cccv: 0, Load_CV: 39.0, power: 45.0 }    # Ideal Load_CV: 40
-    - { cccv: 1, Load_CC: 4.9, power: 45.0 }     # Ideal Load_CC: 5
-    - { cccv: 2, Load_CC: 2.3, power: 45.0 }     # Ideal Load_CC: 2.5
-    - { cccv: 3, Load_CC: 1.9, power: 45.0 }     # Ideal Load_CC: 2
-    - { cccv: 4, Load_CC: 1.4, power: 45.0 }     # Ideal Load_CC: 1.5
+    - { cccv: 0, Load_CV: 37.0, power: 45.0 }    # Ideal Load_CV: 40, was 39,38
+    - { cccv: 1, Load_CC: 4.7, power: 45.0 }     # Ideal Load_CC: 5, was 4.9,4.75
+    - { cccv: 2, Load_CC: 2.3, power: 45.0 }     # Ideal Load_CC: 2.5, was 2.4
+    - { cccv: 3, Load_CC: 1.85, power: 45.0 }     # Ideal Load_CC: 2, was 1.9
+    - { cccv: 4, Load_CC: 1.35, power: 45.0 }     # Ideal Load_CC: 1.5, was 1.4
     - { cccv: 255}
 
 pdline: 1
@@ -40,6 +40,7 @@ commission:
       maxw: "100"
       pp: 100
       fadetime: 2000
+      cv: 255
     "/sensors/ALL":
       sentype: "disable"
       eventlh: "default"

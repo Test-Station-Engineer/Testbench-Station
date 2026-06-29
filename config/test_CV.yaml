@@ -24,7 +24,7 @@ loads:
 sensor1: 1 # 1/0 or true/false to determine whether to test sensor low and high or not
 pdline: 1 # 1/0 or true/false to determine whether to test wallswitch low and high or not
 
-rs485: 1 # 1/0 or true/false to determine whether to test rs485 comm line or not
+rs485: 0 # 1/0 or true/false to determine whether to test rs485 comm line or not
 
 commission: # Optional commission fields to set the node to when done testing
   toggle: 1 # 1/0 or true/false to determine whether to test sensor low and high or not

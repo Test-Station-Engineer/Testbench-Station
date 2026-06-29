@@ -47,7 +47,7 @@ def scan(range_start=2, range_end=255, scan_timeout=0.1):
     ip_end = '.'.join(ip_address_split)
     print('Scan range', ip_start, 'to', ip_end)
     
-    if range_start < 2 or range_end > 255 or range_end <= range_start:
+    if range_start < 1 or range_end > 255 or range_end <= range_start:
         print('Scan range error')
         return []
     

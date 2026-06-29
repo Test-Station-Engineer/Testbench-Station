@@ -207,18 +207,11 @@ class SerialTcpMonitor:
 
         try:
             while self.running.is_set():
-                data = ser.read(4096)
-
+                # data = ser.read(4096)
+                data = ser.readline() # NOTE Changed to readline() to better handle line-based output. Adjust as needed.
                 if not data:
                     continue
 
-                # Local console visibility          # NOTE Replaced with write_output() helper method
-                # try:                              # NOTE Replaced with write_output() helper method
-                #     sys.stdout.buffer.write(data) # NOTE Replaced with write_output() helper method
-                #     sys.stdout.buffer.flush()     # NOTE Replaced with write_output() helper method
-
-                # except Exception:                 # NOTE Replaced with write_output() helper method
-                #     pass                          # NOTE Replaced with write_output() helper method
                 self.write_output(data)
 
                 # Send to TCP clients
@@ -233,6 +226,15 @@ class SerialTcpMonitor:
                 pass
 
             self.serial_handle = None
+
+            if self.log_handle:
+                try:
+                    self.log_handle.close()
+                except OSError:
+                    pass
+
+                self.log_handle = None
+
             print("[monitor] Serial port closed")
 
     # =========================
@@ -308,13 +310,13 @@ class SerialTcpMonitor:
 # =========================
 if __name__ == "__main__":
     # CP210X USB‑to‑UART Bridge (common, adjust if needed)
-    # TARGET_VID = 0x10C4
-    # TARGET_PID = 0xEA60
+    TARGET_VID = 0x10C4
+    TARGET_PID = 0xEA60
     # TARGET_SN = "0001"
 
     # Linak Smart Desk Interface (VID/PID shared by all Linak SMDs)
-    TARGET_VID = 0x303A
-    TARGET_PID = 0x1001
+    # TARGET_VID = 0x303A
+    # TARGET_PID = 0x1001
 
     parser = argparse.ArgumentParser()
 
@@ -351,11 +353,29 @@ if __name__ == "__main__":
         help="Disable local terminal input forwarding",
     )
 
+    parser.add_argument(
+        "--log",
+        action="store_true",
+        help="Log serial output to a log file",
+    )
+
+    parser.add_argument(
+        "--logfile",
+        type=str,
+        default="serial_monitor.log",
+        help="Path/file to serial log file",
+    )
+
     args = parser.parse_args()
+    # Enable logging if --logfile was explicitly supplied
+    if "--logfile" in sys.argv:
+        args.log = True
 
     monitor = SerialTcpMonitor(
         tcp_port=args.port,
         enable_operator_input=not args.readonly,
+        log_to_file=args.log,
+        log_file_path=args.logfile,
     )
     if args.vid is None and args.pid is None and args.sn is None:
         print("No device identifiers specified, defaulting to VID/PID for stored CP210X USB-to-UART Bridge")
@@ -364,4 +384,5 @@ if __name__ == "__main__":
     monitor.run(
         vid=args.vid,
         pid=args.pid,
+        # serial_number=args.sn,
     )

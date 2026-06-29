@@ -28,11 +28,14 @@ class SuperNodeProcedure(TestProcedure):
 
     ######################################################################
     @override
-    def before_load_sequence(self, ctx, test_loads): 
+    def before_load_sequence(self, ctx: TestContext, test_loads: dict): # TODO Change test_loads input var name to test_loads_settings to avoid confusion
         dim_setting: int = test_loads.get('dim', 100)
         ctx.dim_expected = dim_setting
         # dim: int = getattr(test_load, "get", lambda *_: 100)('dim', 100)
         for i in range(1,9):
+            # coap_client.secure_setting(ctx.ip,'/policy',f'in{i}hipol',f"F0,{i},{dim_setting}",verbose=True)
+            # coap_client.secure_setting(ctx.ip,'/policy',f'in{i}lopol',f"F0,{i},0",verbose=True)
+            coap_client.secure_setting(ctx.ip,f'/actuators/actuator{i}','motdsbl','33',verbose=True) # Change fade time supernode version
             coap_client.secure_setting(ctx.ip,f'/sensors/input{i}','sentype','INPUT_LH_OR_HL',verbose=True) # Change sensor 1 events supernode version
             coap_client.secure_setting(ctx.ip,f'/sensors/input{i}','eventlh',f"F0,{i},{dim_setting}",verbose=True) # Change sensor 1 events supernode version
             coap_client.secure_setting(ctx.ip,f'/sensors/input{i}','eventhl',f"F0,{i},0",verbose=True) # Change sensor 1 events supernode version
@@ -78,7 +81,7 @@ class SuperNodeProcedure(TestProcedure):
         # )
 
     @override
-    def before_load_output_on(self, ctx, test_load: dict, step): 
+    def before_load_output_on(self, ctx: TestContext, test_load: dict, step): 
         # This is exclusively for checking the change in the 0-10V port.
         coap_client.setDim(ctx.ip,9,10*ctx.current_relay)
 
@@ -89,9 +92,11 @@ class SuperNodeProcedure(TestProcedure):
             coap_client.secure_setting(ctx.ip,f'/sensors/input{ctx.current_relay}','eventlh',f"F0,{ctx.current_relay},{dim_setting}",verbose=True) # Change sensor 1 events supernode version
         time.sleep(1.0)
         
-        current_dim = coap_client.getDim(ctx.ip,ctx.current_relay)
-        if current_dim != 0 and ctx.current_relay != 1: # Current channel should be 0 dim since it hasn't been set yet
-            print(f"\033[3;93mPolicy eventhl is not working properly for channel {ctx.current_relay} | Dim: {current_dim} | Expected: 0\033[0m")
+        # if ctx.current_relay > 1: 
+        #     current_dim = coap_client.getDim(ctx.ip,ctx.current_relay-1)
+        # else: 
+        # if current_dim != 0 and ctx.current_relay != 1: # Current channel should be 0 dim since it hasn't been set yet
+        #     print(f"\033[3;93mPolicy eventhl is not working properly for channel {ctx.current_relay} | Dim: {current_dim} | Expected: 0\033[0m")
 
         # These 2 if statements are meant to invoke a change in dim from switching inputs on either end of the inputs 
         if ctx.current_relay == 1:
