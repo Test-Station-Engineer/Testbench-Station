@@ -6,9 +6,9 @@ pyvisa-py
 pyusb
 zeroconf
 psutil
-pyserial
+pyserial # TODO Check that this is being used, if not remove it
 pyyaml
 keyboard
 
 pymodbus
-streamlit pandas plotly # For the web app and data handling (Originally: streamlit pandas)
+# streamlit pandas plotly # For the web app and data handling (Originally: streamlit pandas)
