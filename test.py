@@ -66,7 +66,8 @@ def testCodeVersion(ctx: TestContext, code_version: str) -> bool:
             return False
     
     if dfd != code_version:
-        write.updateLog('testCodeVersion','fail dfd',dfd)
+        #write.updateLog('testCodeVersion','fail dfd',dfd)
+        print(f"\033[3;91mtestCodeVersion fail dfd {dfd}\033[3;0m")
         if ctx.dfd_match_required:
             return False
     else: print("DFD Version Correctly Matches DFU.")
@@ -84,7 +85,8 @@ def testSerialNumber(ctx: TestContext, sn: str) -> bool:
         coap_client.setSN(ctx.ip, str(sn))
         get_sn = coap_client.getSN(ctx.ip)
         if get_sn != str(sn):
-            write.updateLog('testSerialNumber', 'fail get', get_sn)
+            # write.updateLog('testSerialNumber', 'fail get', get_sn)
+            print(f"\033[3;91mtestSerialNumber fail get {get_sn}\033[3;0m")
             return False
         if ctx.set_sn:
             print("Serial number set to", get_sn)
@@ -104,7 +106,8 @@ def testBoardVersion(ctx: TestContext, bv: str) -> bool:
     else:
         get_bv = coap_client.getBoardVersion(ctx.ip)
         if get_bv != str(bv):
-            write.updateLog('testBoardVersion', 'fail get', get_bv)
+            #write.updateLog('testBoardVersion', 'fail get', get_bv)
+            print(f"\033[3;91mtestBoardVersion fail get {get_bv}\033[3;0m")
             return False
     return True
 
@@ -126,38 +129,39 @@ def runTest(ctx): #TODO No return type specified
     cfg = ctx.test_config
     Device = ctx.Device
 
-    #
     # ─────────────────────────────────────────────
     # 1. Code Version Test
     # ─────────────────────────────────────────────
     if 'code_version' in cfg:
         if testCodeVersion(ctx, cfg['code_version']):
-            write.updateState('runTest','pass - code_version','Pass','code_version')
+            # write.updateState('runTest','pass - code_version','Pass','code_version')
+            print(f"\033[3;92mrunTest pass - code_version\033[3;0m")
         else:
-            write.updateState('runTest','fail - code_version','Fail','code_version')
+            # write.updateState('runTest','fail - code_version','Fail','code_version')
+            print(f"\033[3;91mrunTest fail - code_version\033[3;0m")
             ctx.test_status = 'Fail'
             if ctx.stop_on_failure:
                 return False
     
-    #
     # ─────────────────────────────────────────────
     # 2. Trigger Test (optional, probabilistic)
     # ─────────────────────────────────────────────
     if cfg.get('trigger_1_test'):
         chance = cfg.get('chance_to_test_trigger_1', 0)
         if random.random() < chance / 100:
-            print("Starting Trigger 1 Test")
+            # print("Starting Trigger 1 Test")
             attempts = cfg.get('number_of_trigger_1_attempts', 1)
             wait_sec = cfg.get('seconds_to_wait_for_restart', 8.0)
             if trigger_test.run(ctx, attempts, wait_sec):
-                write.updateState('runTest', 'pass - trigger1', 'Pass', 'trigger1')
+                # write.updateState('runTest', 'pass - trigger1', 'Pass', 'trigger1')
+                print(f"\033[3;92mrunTest pass - trigger1\033[3;0m")
             else:
-                write.updateState('runTest', 'fail - trigger1', 'Fail', 'trigger1')
+                # write.updateState('runTest', 'fail - trigger1', 'Fail', 'trigger1')
+                print(f"\033[3;91mrunTest fail - trigger1\033[3;0m")
                 ctx.test_status = 'Fail'
                 if ctx.stop_on_failure:
                     return False
 
-    #
     # ─────────────────────────────────────────────
     # 3. Update DB flag (unchanged behavior)
     # ─────────────────────────────────────────────

@@ -46,10 +46,12 @@ def run(ctx: TestContext) -> bool:
     write.updateLog('Starting PDLine Testing')
     
     if not push_btn_then_check_dim_loop(True, 100):
-        write.updateLog('testPDLine','On','fail set dim')
+        #write.updateLog('testPDLine','On','fail set dim')
+        print("\033[3;91mtestPDLine On fail set dim\033[3;0m")
         return False
 
     if not push_btn_then_check_dim_loop(False, 0):
-        write.updateLog('testPDLine','Off','fail set dim')
+        # write.updateLog('testPDLine','Off','fail set dim')
+        print("\033[3;91mtestPDLine Off fail set dim\033[3;0m")
         return False
     return True

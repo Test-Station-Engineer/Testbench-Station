@@ -71,7 +71,16 @@ def scan(range_start=2, range_end=255, scan_timeout=0.1):
         test_ip_address = '.'.join(ip_address_split)
         
         if test_ip_address != ip_address:
-            data = coap_client.getUcast(test_ip_address, '/network', scan_timeout)
+
+            # NOTE THIS METHOD IS A BANDAID QUICK FIX FOR THE ISSUE OF COAP SCAN SKIPPING MY DEVICE. KINDA BAD, FIX LATER
+            # Replaced just --> data = coap_client.getUcast(test_ip_address, '/network', scan_timeout)
+            data = None
+            for i in range(3):
+                data = coap_client.getUcast(test_ip_address, '/network', scan_timeout)
+                if data:
+                    break
+                time.sleep(0.15)  # delay before retrying
+            # NOTE END OF BANDAID FIX
             if data:
                 node = {'ip': test_ip_address, 'network': data}
                 if not is_mini_node:

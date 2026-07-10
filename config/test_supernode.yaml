@@ -40,7 +40,7 @@ commission:
       maxw: "100"
       pp: 100
       fadetime: 2000
-      cv: 255
+      cccv: "255"
     "/sensors/ALL":
       sentype: "disable"
       eventlh: "default"

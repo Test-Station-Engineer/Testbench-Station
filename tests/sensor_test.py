@@ -36,7 +36,8 @@ def run(ctx: TestContext) -> bool:
     time.sleep(5.0) # wait for event
 
     if not actuators.check_actuators_dim(ctx, Device.all_actuators_integer(), 100, verbose=True):
-        write.updateLog('testSensor1','high','fail set dim')
+        #write.updateLog('testSensor1','high','fail set dim')
+        print('\033[3;91mtestSensor1 high fail set dim\033[3;0m')
         passed = False
 
     time.sleep(2.0)
@@ -45,7 +46,8 @@ def run(ctx: TestContext) -> bool:
     time.sleep(1.0) # wait for  event
 
     if not actuators.check_actuators_dim(ctx, Device.all_actuators_integer(), 0, verbose=True):
-        write.updateLog('testSensor1','low','fail set dim')
+        #write.updateLog('testSensor1','low','fail set dim')
+        print('\033[3;91mtestSensor1 low fail set dim\033[3;0m')
         passed = False
 
     Device.procedure().after_sensor_test(ctx)

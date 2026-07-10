@@ -160,20 +160,20 @@ class SuperNodeProcedure(TestProcedure):
         if test_loads is not None:
             valid_loads = [load for load in test_loads['test_steps'] if load.get('cccv') not in (1,2)]
             test_load = random.choice(valid_loads)
-        
+        relay = random.randint(1,7) # If DC in test, we only test 1 random relay, so disregard for loop in this case.
         if not valid_loads: 
             print("'Load' nor 'Loads' found in test yaml file. Using local default value.")
             local_default_loads = [
-            { "cccv": 0, "Load_CV": 40, "dim": 100, "power": 45.0 },
-            { "cccv": 1, "Load_CC": 5.0, "dim": 100, "power": 45.0 },
-            { "cccv": 2, "Load_CC": 2.5, "dim": 100, "power": 45.0 },
-            { "cccv": 3, "Load_CC": 2, "dim": 100, "power": 45.0 },
-            { "cccv": 4, "Load_CC": 1.5, "dim": 100, "power": 45.0 }
+            { "cccv": 0, "Load_CV": 37, "dim": 100, "power": 45.0 },
+            { "cccv": 1, "Load_CC": 4.7, "dim": 100, "power": 45.0 },
+            { "cccv": 2, "Load_CC": 2.3, "dim": 100, "power": 45.0 },
+            { "cccv": 3, "Load_CC": 1.85, "dim": 100, "power": 45.0 },
+            { "cccv": 4, "Load_CC": 1.35, "dim": 100, "power": 45.0 }
             ]
             valid_loads = [load for load in local_default_loads if load.get('cccv') not in [1,2]]
             test_load = random.choice(local_default_loads)
         print(test_load)
-        test_single_load(ctx, test_load)
+        test_single_load(ctx, test_load, channels = [relay])
 
         coap_client.setCCCV(ctx.ip,0,255)
 

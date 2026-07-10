@@ -275,7 +275,7 @@ def moving_power_check(
             write.updateLog('test_load', relay, 'fail power', avg_power)
             return LoadTestResult(True, avg_power, median_power, min_power, max_power)
 
-def test_single_load(ctx: TestContext, test_load: dict) -> bool:
+def test_single_load(ctx: TestContext, test_load: dict, channels: list[int] = None) -> bool:
     """Tests a load based on parameters defined in the test load argument. 
         \nParses single load test settings
         \nRuns Device before_load_relays() hook.
@@ -293,7 +293,8 @@ def test_single_load(ctx: TestContext, test_load: dict) -> bool:
 
     # Set Relays Bool allows testing first listed relay or all relays
     # TODO Scale to accept relay as an input perhaps, put in TestProcedure before_load_step/sequence???
-    if load_test_settings.sweep_channel_first: all_relays = [ctx.current_relay]
+    if channels is not None: all_relays = channels
+    elif load_test_settings.sweep_channel_first: all_relays = [ctx.current_relay]
     else: all_relays = Device.relays()
     # relays = all_relays[0] if getattr(load_test_settings, "sweep_channel_first", False) else all_relays
     

@@ -1,4 +1,5 @@
 from context import TestContext
+from resources import actuators
 from services import coap_client
 import time
 
@@ -28,6 +29,7 @@ def run(ctx: TestContext, commission_settings) -> bool:
             print(f"Applying settings to all {ctx.Device.number_of_actuators()} {resource_type} channels:")
             for k, v in kv_pairs.items():
                 print(f"  {k}: {v}")
+            cccv_was_set: bool = False
             for channel in range(1,ctx.Device.number_of_actuators()+1):
                 # Replace the 'ALL' with the appropriate resource and channel number
                 resource_channel = resource.replace("ALL",f"{resource_type}{str(channel)}")
@@ -43,12 +45,19 @@ def run(ctx: TestContext, commission_settings) -> bool:
                         continue
 
                     # Apply the setting
-                    if not coap_client.secure_setting(ctx.ip, resource_channel, key, value, checkVerbose, timeout = 5.0):
+                    if key == 'cccv':
+                        if not cccv_was_set:
+                            if not actuators.set_cccv(ctx=ctx, actuator_num=ctx.Device.all_actuators_integer(), cccv_preset=value):
+                                print(f"Failed to apply CV {value} setting.")
+                                success = False
+                            else: 
+                                cccv_was_set = True
+                                print(f"Waiting a few seconds after setting CCCV {value}.") # Switch this to a timeout preferably.
+                                time.sleep(5.0)  # Allow time for CCCV to take effect    
+                    elif not coap_client.secure_setting(ctx.ip, resource_channel, key, value, checkVerbose, timeout = 5.0):
                         print(f"Failed to apply {key}={value} on {resource_channel}")
                         success = False
-                    if key == 'cccv':
-                        print(f"Waiting a few seconds after setting CCCV on {resource_channel}.") # Switch this to a timeout preferably.
-                        time.sleep(5.0)  # Allow time for CCCV to take effect
+                    
                 # if device_name.lower() == 'supernode' or device_name.lower() == 'ccuv':
                 #     print(f"Waiting 3 seconds between actuator settings for {device}.")
                 #     time.sleep(3.0)  # Some devices need a bit more time between settings

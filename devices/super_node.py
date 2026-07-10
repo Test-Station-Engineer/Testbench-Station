@@ -16,7 +16,7 @@ class SuperNode(Device):
     
     @override
     def update_db_wait_time(self) -> float:
-        return 12.0
+        return 14.0
 
     @override
     def all_actuators_integer(self) -> int:

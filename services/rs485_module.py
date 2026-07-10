@@ -11,7 +11,7 @@ from serial.tools import list_ports
 try:
     from . import parse_monitor as parser
 except ImportError:
-    import services.parse_monitor as parser
+    import parse_monitor as parser # NOTE I keep changing this, decide on a location soon. 
 
 # =====================
 # Configuration
@@ -104,7 +104,7 @@ def main(message: bytes = RS485_MESSAGE):
         # sys.exit(0)
         return True
     else:
-        print("[rs485] FAIL: No RS‑485 message received")
+        print("\033[3;91m[rs485] FAIL: No RS-485 message received\033[3;0m")
         # sys.exit(1)
         return False
     # return passed

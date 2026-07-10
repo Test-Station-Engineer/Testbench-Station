@@ -7,6 +7,7 @@ from services import controller
 
 def run(ctx: TestContext, number_of_times_to_restart: int = 1, seconds_to_wait_for_restart: float = 8.0) -> bool:
     # TODO Replace this with a simpler timeout check, also ip check should be different
+    print(f"\033[94mRunning Trigger 1 Test\033[0m")
 
     times_restarted = 0
     while(times_restarted < number_of_times_to_restart):
