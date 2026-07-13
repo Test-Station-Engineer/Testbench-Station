@@ -10,7 +10,7 @@ except ImportError:
 class Device(ABC):
     
     @abstractmethod
-    def procedure(self) -> TestProcedure:
+    def procedure(self) -> "TestProcedure":
         raise NotImplementedError("Device subclasses must implement the procedure() method.")
     
     def update_db_wait_time(self) -> float:

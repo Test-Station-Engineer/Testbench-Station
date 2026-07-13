@@ -308,13 +308,13 @@ class SerialTcpMonitor:
 # =========================
 if __name__ == "__main__":
     # CP210X USB‑to‑UART Bridge (common, adjust if needed)
-    # TARGET_VID = 0x10C4
-    # TARGET_PID = 0xEA60
-    # TARGET_SN = "0001"
+    TARGET_VID = 0x10C4
+    TARGET_PID = 0xEA60
+    TARGET_SN = "0001"
 
     # Linak Smart Desk Interface (VID/PID shared by all Linak SMDs)
-    TARGET_VID = 0x303A
-    TARGET_PID = 0x1001
+    # TARGET_VID = 0x303A
+    # TARGET_PID = 0x1001
 
     parser = argparse.ArgumentParser()
 
@@ -335,6 +335,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--sn",
         type=str,
+        default=None,
         help="USB serial number",
     )
 
@@ -364,4 +365,5 @@ if __name__ == "__main__":
     monitor.run(
         vid=args.vid,
         pid=args.pid,
+        serial_number=args.sn,
     )

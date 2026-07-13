@@ -1,14 +1,16 @@
 aiocoap
 cbor2==5.5.1
 tftpy
-mysql-connector-python
+mysql-connector-python # No longer used, database removed
+pyvisa
 pyvisa-py
 pyusb
 zeroconf
 psutil
 pyserial # TODO Check that this is being used, if not remove it
 pyyaml
-keyboard
+pynput
+keyboard # Need to replace with something that doesn't require sudo
 
 pymodbus
 # streamlit pandas plotly # For the web app and data handling (Originally: streamlit pandas)

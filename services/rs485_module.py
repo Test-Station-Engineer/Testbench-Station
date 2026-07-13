@@ -19,7 +19,8 @@ except ImportError:
 # =====================
 # RS485_VID = 403
 # RS485_PID = 6001
-RS485_SN: str = "BG01EHULA"
+# RS485_SN: str = "BG01EHULA"
+RS485_SN: str = "BG01XD6U"
 RS485_BAUD_RATE = 115200
 
 RTS_PRE_DELAY = 0.005
