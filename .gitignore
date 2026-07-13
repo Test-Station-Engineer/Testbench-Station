@@ -163,3 +163,5 @@ cython_debug/
 /config/defunct
 /defunct
 /dev
+/devices/obsolete
+/services/unused
