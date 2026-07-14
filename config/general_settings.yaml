@@ -1,10 +1,16 @@
-subnet: "192.168.2.255"       # Searches through this set of IPs (e.g. 192.168.2.255 will search 192.168.2.xyz - 192.168.2.255)
+subnet: "192.168.1.255"       # Searches through this set of IPs (e.g. 192.168.2.255 will search 192.168.2.xyz - 192.168.2.255)
+# subnet: "192.168.2.255"
+
 scan_timeout: 0.15             # How much time to wait for individual IP address to respond (default = 0.1)
-scan_start: 35              # Host ID of IP to start scan from e.g. 11 will start scan at 192.168.2.11 (default = 251)
+scan_start: 10              # Host ID of IP to start scan from e.g. 11 will start scan at 192.168.2.11 (default = 251)
 scan_end: 255               # Host ID of IP to stop scan at. (default = 255)
 
 Load Machine COM: "COM4"      # Can be an integer (4) or a string (COM4). Check device manager as you plug/unplug it to find right COM
 Microcontroller COM: "COM3"   # Does nothing currently, need to test this and above one / Can be an integer (4) or a string (COM4). Check device manager as you plug/unplug it to find right COM
+
+# Microcontroller Port: "/dev/ttyUSB2" # Linux version # NOTE Not implemented yet
+# RS485_SN: "BG01XD6U"                                 # NOTE: Not implemented yet
+# Load Machine SN: "B0017WHY"                          # NOTE: Not implemented 
 
 prompt_continue_key: 'DOWN'   # Need to set this for each send_test_prompt that uses it
 prompt_end_test_key: 'esc'    # Does nothing currently, need to implement
