@@ -17,7 +17,7 @@ from resources import network, actuators
 
 from tests import trigger_test, load_test, sensor_test, wall_switch_test, commission
 
-from devices.obsolete import functions_mini as mnode
+# from devices.obsolete import functions_mini as mnode
 
 import frontend.prompt as prompt
 
@@ -79,8 +79,8 @@ def testSerialNumber(ctx: TestContext, sn: str) -> bool:
     Context-based version of testSerialNumber. Behavior unchanged.
     """
 
-    if ctx.mini_node_test:
-        mnode.serial_number_test(sn)  # sn had serial_number before for some reason
+    # if ctx.mini_node_test: # TODO CORE NODE INTEGRATION
+    #     mnode.serial_number_test(sn)  # sn had serial_number before for some reason
     if ctx.set_sn or not ctx.scan_sn:
         coap_client.setSN(ctx.ip, str(sn))
         get_sn = coap_client.getSN(ctx.ip)
@@ -98,8 +98,9 @@ def testBoardVersion(ctx: TestContext, bv: str) -> bool:
     """
 
     if ctx.mini_node_test:
-        if not mnode.get_board_version(ctx.ip):
-            return False
+        pass    # TODO CORE NODE INTEGRATION
+        # if not mnode.get_board_version(ctx.ip):
+        #     return False
     elif ctx.battery_backup_test:
         # legacy forced value for battery backup NOTE THIS SUCKS
         ctx.board_version = 'BB-R2.2'
@@ -191,13 +192,13 @@ def runTest(ctx): #TODO No return type specified
     # 5. Device-specific initialization
     # ─────────────────────────────────────────────
     # TODO JUST MIGRATE THESE TO PROCEDURE INITS FFS
-    if ctx.mini_node_test:
-        ctx.node_channels = 1
-        mnode.init(ctx.ip, cfg, ctx.serial_number)
-        print("Initializing Mini Node Test")
+    # if ctx.mini_node_test:                            # TODO CORE NODE INTEGRATION
+    #     ctx.node_channels = 1
+    #     mnode.init(ctx.ip, cfg, ctx.serial_number)
+    #     print("Initializing Mini Node Test")
 
 
-    elif ctx.els_node_test: 
+    if ctx.els_node_test: 
         print("Initializing ELS test")
         coap_client.putValue(ctx.ip,'/actuators/actuator1','els','true')
         coap_client.putValue(ctx.ip,'/actuators/actuator1','els','true')
@@ -350,8 +351,8 @@ def runTest(ctx): #TODO No return type specified
         if not isinstance(rgbw_sets, list) or not all(isinstance(x, int) for x in rgbw_sets):
             print("RGBW Sets in test_config must be formatted as a list of ints. Proceeding with default values.")
             rgbw_sets = [4278190080,16711680,65280,255,4294967295]
-        if ctx.mini_node_test:
-            mnode.rgbw_test(rgbw_sets)
+        # if ctx.mini_node_test:
+        #     mnode.rgbw_test(rgbw_sets)   # TODO CORE NODE INTEGRATION
 
     # 
     # ─────────────────────────────────────────────
@@ -409,9 +410,9 @@ def runTest(ctx): #TODO No return type specified
     # ─────────────────────────────────────────────
     # 17. Mini Node Firmware Upgrade
     # ─────────────────────────────────────────────
-    if ctx.mini_node_test and cfg.get('firmware_upgrade'):
-        print("Starting firmware upgrade...")
-        mnode.firmware_upgrade_test()
+    # if ctx.mini_node_test and cfg.get('firmware_upgrade'):  # TODO CORE NODE INTEGRATION
+    #     print("Starting firmware upgrade...")
+    #     mnode.firmware_upgrade_test()
     
     #
     # ─────────────────────────────────────────────

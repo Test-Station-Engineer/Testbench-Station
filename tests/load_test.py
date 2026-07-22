@@ -8,7 +8,7 @@ from frontend import prompt
 from write import write
 
 # TODO Delete later
-from devices.obsolete import functions_mini as mnode
+# from devices.obsolete import functions_mini as mnode
 from devices import functions_els as els
 #
 from services import controller
