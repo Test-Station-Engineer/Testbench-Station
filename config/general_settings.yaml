@@ -1,6 +1,6 @@
 subnet: "192.168.2.255"       # Searches through this set of IPs (e.g. 192.168.2.255 will search 192.168.2.xyz - 192.168.2.255)
 scan_timeout: 0.15             # How much time to wait for individual IP address to respond (default = 0.1)
-scan_start: 35              # Host ID of IP to start scan from e.g. 11 will start scan at 192.168.2.11 (default = 251)
+scan_start: 60              # Host ID of IP to start scan from e.g. 11 will start scan at 192.168.2.11 (default = 251)
 scan_end: 255               # Host ID of IP to stop scan at. (default = 255)
 
 Load Machine COM: "COM4"      # Can be an integer (4) or a string (COM4). Check device manager as you plug/unplug it to find right COM
