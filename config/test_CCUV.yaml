@@ -32,7 +32,7 @@ loads:
 sensor1: 1
 pdline: 1
 
-rs485: 0
+rs485: 1
 
 commission:
   toggle: 1
