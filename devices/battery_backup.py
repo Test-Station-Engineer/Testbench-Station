@@ -18,10 +18,10 @@ class BatteryBackup(Device):
 
     @override
     def all_actuators_integer(self) -> int:
-        return 0
+        return 3
     @override
     def number_of_actuators(self) -> int:
-        return 1
+        return 1 # We only test 1 channel, could change in the future
     @override
     def first_actuator(self) -> int:
         return 1

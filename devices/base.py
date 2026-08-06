@@ -69,7 +69,7 @@ class Device(ABC):
     def post_maxw_setting_delay(self) -> float:
         return 0.5
     def post_cccv_setting_delay(self) -> float:
-        return 8.0
+        return 10.0
 
     """ #  NOTE USE FOR SUPERNODE
     def cmd_network_resource(self, value: int) -> dict:

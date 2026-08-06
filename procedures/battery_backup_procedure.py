@@ -60,6 +60,7 @@ class BatteryBackupProcedure(TestProcedure):
                 if coap_client.secure_setting(ctx.ip,'/actuators/actuator1','cuv',str(test_load['cuv'])) and coap_client.secure_setting(ctx.ip,'/actuators/actuator2','cuv',str(test_load['cuv'])):
                     write.updateLog('testCUV','pass',test_load['cuv'])
         
+        # NOTE Keep an eye on this
         dim: int = 100
         if 'dim' in test_load: dim = test_load['dim']   
         actuators.dim_update(
@@ -81,46 +82,48 @@ class BatteryBackupProcedure(TestProcedure):
     def after_pdline_test(self, ctx): pass
 
     def custom_loads_test(self, ctx, test_loads: list[dict]): 
+        all_channels = ctx.Device.all_actuators_integer()
 
         def test_battery_load(ctx: TestContext, upper_load, lower_load, wait_time) -> bool:
-            if not actuators.set_cccv(ctx=ctx, actuator_num=0, cccv_preset=10): 
+            if not actuators.set_cccv(ctx=ctx, actuator_num=all_channels, cccv_preset=10): 
                 return False
             # actuators.set_dim(ctx,0,dim=90)  # NOTE Commented out 4/13/2026
             # time.sleep(1)                    # NOTE Commented out 4/13/2026
-            # actuators.set_dim(ctx,0,dim=100) # NOTE Commented out 4/13/2026
+            time.sleep(wait_time)
+            actuators.set_dim(ctx,all_channels,dim=100) # NOTE Commented out 4/13/2026
 
             time.sleep(wait_time) # TODO Check if needed next time
 
             if not test_single_load(ctx, upper_load): 
                 return False
 
-            if not actuators.set_cccv(ctx=ctx, actuator_num=0, cccv_preset=10): 
-                return False
+            # if not actuators.set_cccv(ctx=ctx, actuator_num=3, cccv_preset=10):               # NOTE Commented out 8/3/2026 
+            #     return False                                                                  # NOTE Commented out 8/3/2026 
 
-            print("Doing a DIM UPDATE") # Added 4/13/2026 for checking dim resource/key pairs
-            actuators.dim_update(ctx,channel=0,dim_down_value=90,dim_up_value=100,delay=1.0)
+            # print("Doing a DIM UPDATE") # Added 4/13/2026 for checking dim resource/key pairs # NOTE Commented out 8/3/2026 
+            # actuators.dim_update(ctx,channel=3,dim_down_value=90,dim_up_value=100,delay=1.0)  # NOTE Commented out 8/3/2026 
             
             # write.send_test_prompt(key,f"Press and hold switch test button. Then press {key} on keyboard when ready.", "Keep button held.")
             if prompt.prompt("Switch Test Button", "Press and hold switch test button for this next test. Select 'Okay' to continue or 'Cancel' to end test."): 
-                print("Keep button held")
+                print("\033[94mKEEP BUTTON HELD DOWN\033[3;0m")
             else: 
                 return False
 
             # time.sleep(wait_time) # NOTE Commented out 4/13/2026 to try to use time_before_load_on instead
             if not test_single_load(ctx, lower_load): 
                 return False
-            print("Release button")
+            print("\033[94mRELEASE BUTTON\033[3;0m")
             time.sleep(5.0)
-            actuators.set_dim(ctx,channel=0,dim=100)
+            actuators.set_dim(ctx,channel=all_channels,dim=100)
             if not test_single_load(ctx, upper_load): 
                 return False
             
 
             # TESTING FEATURE
             
-            if not actuators.set_cccv(ctx=ctx, actuator_num=0, cccv_preset=255): # Replaced cv 0
+            if not actuators.set_cccv(ctx=ctx, actuator_num=all_channels, cccv_preset=255): # Replaced cv 0
                 return False
-            actuators.set_dim(ctx,channel=0,dim=0)
+            actuators.set_dim(ctx,channel=all_channels,dim=0)
 
             print("Dim:",coap_client.getDim(ctx.ip,1),coap_client.getDim(ctx.ip,2),"; CCCV:", coap_client.getCCCV(ctx.ip,1),coap_client.getCCCV(ctx.ip,2))
             time.sleep(wait_time*2)
@@ -134,11 +137,13 @@ class BatteryBackupProcedure(TestProcedure):
             #write.send_test_prompt(key, f"Plug in Channel 1, then press {key}","Testing Normal High Load")
             #time.sleep(wait_time)
 
-            if not actuators.set_cccv(ctx=ctx, actuator_num=0, cccv_preset=10):
+            if not actuators.set_cccv(ctx=ctx, actuator_num=all_channels, cccv_preset=10):
                 return False
-            # if not actuators.set_max_watt(ctx, ctx.test_config['maxw'], actuator_num=0): # NOTE Is this even necessary anymore?
+            # if not actuators.set_max_watt(ctx, ctx.test_config['maxw'], actuator_num=3): # NOTE Is this even necessary anymore?
             #     return False
-            # coap_client.setDim(ctx.ip,0,100)
+            # coap_client.setDim(ctx.ip,3,100)
+            time.sleep(1.0)
+            actuators.set_dim(ctx,channel=all_channels,dim=100)
             if not test_single_load(ctx, upper_load): 
                 return False
 

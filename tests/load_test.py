@@ -282,9 +282,11 @@ def test_single_load(ctx: TestContext, test_load: dict, channels: list[int] = No
         \nTests the load for each relay in the device,
         \nCalling Device hooks such as before_load_output_on and before_load_output_off."""
 
-    Device = ctx.Device # TODO REMEMBER TO PUT THIS IN A DEVICE SELECTER AND REPLACE ctx LATER
+    # --- Get Device and parse load test settings ---
+    Device = ctx.Device
     load_test_settings: SingleLoadTestSettings = parse_single_load_test_settings(ctx, test_load)
     
+    # --- Call Device before_load_relays() hook ---
     Device.procedure().before_load_relays(ctx, test_load) 
 
     if load_test_settings is None: return True

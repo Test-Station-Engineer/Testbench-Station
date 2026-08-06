@@ -1,15 +1,14 @@
 cxode_version: "2out v Sep 26 2024 13:21:07"
 
-cccv: 10
-
 # hold_load_time: 10
 time_before_load_on: 3.0
+
 maxw: 620
 
 loads:
   toggle: 1 # 1/0 or true/false to determine whether this test occurs or not
   # time_before_load_on: 3.0
-  cccv: 10
+  # cccv: 10
   measure_every_seconds: 0.25
   time_before_load_on: 3.0
   test_steps: # Contains each load to test
@@ -23,9 +22,14 @@ await_key: "down"
 commission:
   toggle: 0
   settings:
+    # "/actuators/ALL":
+    #   maxw: "100"
+    #   pp: 100
     "/actuators/ALL":
-      maxw: "100"
-      pp: 100
+        cccv: "255"
+        maxw: "100"
+        pp: 100
+        fadetime: 2000
 
 rs485: 1
 

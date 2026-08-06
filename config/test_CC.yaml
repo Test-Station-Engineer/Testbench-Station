@@ -1,14 +1,13 @@
-cxode_version: "2out v Jan 29 2026 15:54:29" # Check to see if code version matches up with this one.
-cxode_version: "2out v Feb 12 2026 16:49:54" # Check to see if code version matches up with this one.
+code_version: "2out v Aug  3 2026 13:00:38" # Check to see if code version matches up with this one.
 
 # Trigger 1 Settings
-trigger_1_test: 1                 # Will test to see if the node handles being prompted to restart
+trigger_1_test: 1               # Will test to see if the node handles being prompted to restart
 chance_to_test_trigger_1: 100.0       # Self explanatory. Used for sample testing. 100 means guaranteed.
 number_of_trigger_1_attempts: 1.0    # Number of times it will restart the node
 seconds_to_wait_for_restart: 9.0      # How long to wait for IP address discovery.
 
 # Main Test Settings
-update_db: 1                      # Runs "update_db" on the node
+update_db: 1                     # Runs "update_db" on the node
 cccv: 0                               # Sets desired cccv value
 maxw: 713                             # Sets max watt for load test
 hold_load_time: 2.5 # DOESN'T WORK OUTSIDE - FIX                  # Determines how long the load will be kept on for
