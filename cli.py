@@ -1,3 +1,7 @@
+# cli.py
+# Purpose is to parse the arguments passed on the command line when first running test.py
+# TODO Move file parser functions like load_yaml, parse_general_settings(), and init_test_config() 
+
 from context import TestContext
 import os
 import yaml

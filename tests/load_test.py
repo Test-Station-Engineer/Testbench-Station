@@ -15,6 +15,8 @@ from services import controller
 
 from context import TestContext
 
+crap = False
+
 GREEN = "\033[3;92m" # TODO Move this to a utilities file and expand to support more colors and formatting options
 RED = "\033[3;91m" # TODO Move this to a utilities file and expand to support more colors and formatting options
 YELLOW = "\033[3;93m" # TODO Move this to a utilities file and expand to support more colors and formatting options
@@ -310,8 +312,20 @@ def test_single_load(ctx: TestContext, test_load: dict, channels: list[int] = No
 
         # Set load based on load test settings. NOTE We do this per relay in case the operator makes manual adjustments in between relays
         if load_test_settings.load_cr is not None: load_mach.setResistance(load_test_settings.load_cr)
-        elif load_test_settings.load_cv is not None: load_mach.setVoltage(load_test_settings.load_cv)
-        elif load_test_settings.load_cc is not None: load_mach.setCurrent(load_test_settings.load_cc) # Make it increase to ideal value over time if load mach sucks
+        elif load_test_settings.load_cv is not None: 
+            load_cv = load_test_settings.load_cv
+            if crap:
+                if load_cv > 36.0:
+                    load_mach.setVoltage(35.0)
+                    time.sleep(2.0)
+            load_mach.setVoltage(load_cv)
+        elif load_test_settings.load_cc is not None: 
+            load_cc = load_test_settings.load_cc
+            if crap:
+                if load_cc > 2.5:
+                    load_mach.setCurrent(load_cc / 2) # Make it increase to ideal value over time if load mach sucks
+                    time.sleep(2.0)
+            load_mach.setCurrent(load_cc)
                 
         # SET OUTPUT ON AND MEASURE POWER
         time.sleep(1.0)

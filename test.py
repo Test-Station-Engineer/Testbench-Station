@@ -502,8 +502,8 @@ def start(ctx: TestContext) -> bool:
     if not cli.init_test_config(ctx):
         write.updateState('start','failed - cannot load test yaml','Failed','Cannot load test yaml')
         return False
-    if not controller.open(ctx.microcontroller_port,ctx.baud,ctx.microcontroller_timeout):
-    #if not controller.open_device("ARDUINO_NANO"): # Feature for future
+    # if not controller.open(ctx.microcontroller_port,ctx.baud,ctx.microcontroller_timeout):
+    if not controller.open(): # Feature for future
         write.updateState('start','failed - cannot open controller port','Failed','Cannot open controller port')
         return False
     controller.print_rx = ctx.debug_print # debug
@@ -512,7 +512,7 @@ def start(ctx: TestContext) -> bool:
     if not network.get_ip(ctx):
         write.updateState('start','failed - cannot get node ip','Failed','Cannot get node ip')
         return False
-    if not load_mach.open() and 'load' in ctx.test_config:
+    if not load_mach.open() and ctx.test_config in ('load', 'loads'):
         write.updateState('start','failed - cannot open electronic load','Failed','Cannot open electronic load')
         return False
 

@@ -1,6 +1,9 @@
 # load.py
 # el_SDL1020X-E
 import pyvisa as visa
+from port_tool import open_instrument
+
+crap = True
 
 found_device = False
 is_open = False
@@ -9,30 +12,53 @@ res_els = [
 'USB0::62700::5665::SDL13GCC7R0064::0::INSTR',
 'USB0::62700::5665::SDL13GCC7R0069::0::INSTR',
 'ASRL4::INSTR',
-'ASRL/dev/ttyUSB0::INSTR'
+'ASRL/dev/ttyUSB3::INSTR'
 ]
+
+# def open():
+#     global is_open
+#     if is_open:
+#         return
+#     global found_device
+#     global device
+#     rm = visa.ResourceManager('@py')
+#     found_device = False
+#     for res in rm.list_resources():
+#         for res_el in res_els:
+#             # print(res)
+#             if res == res_el:
+#                 print(res)
+#                 device = rm.open_resource(res_el)
+#                 found_device = True
+#                 print(f'Found Electronic Load: {device}')
+#                 break
+#     if not found_device:
+#         print('\033[3;91mCould not find Electronic Load\033[0m')
+#         return False
+#     # device = rm.open_resource(res_el)
+#     device.timeout = 10000
+#     is_open = True
+#     return True
 
 def open():
     global is_open
-    if is_open:
-        return
-    global found_device
     global device
-    rm = visa.ResourceManager('@py')
-    found_device = False
-    for res in rm.list_resources():
-        for res_el in res_els:
-            #print(res)
-            if res == res_el:
-                device = rm.open_resource(res_el)
-                found_device = True
-                #print('Found Electronic Load')
-                break
-    if not found_device:
-        print('\033[3;91mCould not find Electronic Load\033[0m')
-        return False
-    # device = rm.open_resource(res_el)
-    device.timeout = 10000
+
+    if is_open:
+        return True
+
+    try:
+        device = open_instrument("load")
+        # print(f"DEVICE: {device}")
+        # print("Testing load communication...")
+        # print("IDN:", device.query("*IDN?"))
+        # print("Voltage:", device.query("MEAS:VOLT?"))
+        # print("Current:", device.query("MEAS:CURR?"))
+        # print("Power:", device.query("MEAS:POW?"))
+
+    except Exception as e:
+        raise RuntimeError(f"Load Machine Failed to open: {e}") from e
+
     is_open = True
     return True
 
@@ -56,13 +82,14 @@ def write(msg):
     else:
         return 'Device not open'
 
-"""def safeWrite(msg): # TODO TEST THIS LATER
+'''def safeWrite(msg): # TODO TEST THIS LATER
     if not is_open:
         return 'Device not open'
 
     device.write(msg)
     device.query('*OPC?')  # wait until operation complete
-    return 'OK'"""
+    return 'OK'
+    '''
 
 def measureFloat(msg):
     if is_open:
@@ -141,7 +168,7 @@ def setResistance(value):
     else: write('MODE CRH')
     return write('RES '+"{:.3f}".format(value))
 
-# Extra helper functions #NOTE Need to incorporate these and test them later.
+# Extra helper functions # NOTE Need to incorporate these and test them later.
 
 def isOutputOn():
     if is_open:

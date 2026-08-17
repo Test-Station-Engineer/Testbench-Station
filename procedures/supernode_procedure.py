@@ -140,7 +140,8 @@ class SuperNodeProcedure(TestProcedure):
         coap_client.secure_setting(ctx.ip,'/actuators/actuator1','motdsbl','0') # disable motion (supernode)
 
     def before_pdline_test(self, ctx): # TODO CHANGE TO POPUP PROMPT
-        write.send_test_prompt(write.key,f'Connect control port of {ctx.device_name} to test station and press {write.key}','')
+        # write.send_test_prompt(write.key,f'Connect control port of {ctx.device_name} to test station and press {write.key}','')
+        pass
     def after_pdline_test(self, ctx): pass
 
     def custom_loads_test(self, ctx, test_loads): pass

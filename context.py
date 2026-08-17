@@ -44,7 +44,7 @@ class TestContext:
     # Settings
     microcontroller_port: str = 'COM8'                  # The COM port for the microcontroller connection, MAKE SURE THIS IS SET IN GENERAL SETTINGS YAML
     # microcontroller_port: str = '/dev/ttyUSB0'          # Linux version
-    # microcontroller_port: str = '/dev/ttyUSB3'          # Linux version
+    microcontroller_port: str = '/dev/ttyUSB0'          # Linux version
     baud: int = 115200                                  # Baud rate for microcontroller connection
     microcontroller_timeout: int = 0                    # timeout for connecting to microcontroller COM port (in seconds); 0 = no timeout
 

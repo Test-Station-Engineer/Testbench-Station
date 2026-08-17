@@ -4,6 +4,8 @@ import io
 import time
 import threading
 
+from port_tool import open_instrument
+
 detect_board_version = ''
 board_version = ''
 dfd_version = ''
@@ -76,6 +78,20 @@ def rxThreadFunction(name):
 
 rx_thread = threading.Thread(target=rxThreadFunction, args=(1,), daemon=True)
 
+def open():
+    global ser
+    try:
+        ser = open_instrument("microcontroller")
+        print(f"DEVICE: {ser}")
+        # print("Testing communication...")
+        # print("IDN:", device.query("*IDN?"))
+
+    except Exception as e:
+        raise RuntimeError(f"Microcontroller Failed to open: {e}") from e
+
+    return ser.is_open
+
+"""
 def open(port,baud,timeout):
     ser.baudrate = baud
     ser.port = port
@@ -85,6 +101,7 @@ def open(port,baud,timeout):
     except:
         print('Could not find Controller')
     return ser.is_open
+"""
 
 def close():
     global rx_thread_running
