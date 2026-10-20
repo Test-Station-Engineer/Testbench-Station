@@ -1,10 +1,10 @@
-cxode_version: "super v Mar  9 2026 17:05:33"
+cxode_version: "super v Sep 16 2026 10:27:44"
 
 # Trigger 1 Settings
-trigger_1_test: 1
-chance_to_test_trigger_1: 10.0
+trigger_1_test: 0
+chance_to_test_trigger_1: 100.0
 number_of_trigger_1_attempts: 1.0
-seconds_to_wait_for_restart: 8.0
+seconds_to_wait_for_restart: 20.0
 
 # Update Database
 update_db: 1
@@ -21,12 +21,12 @@ loads:
 
   dim: 100
   test_steps:
-    - { cccv: 0, Load_CV: 37.0, power: 45.0 }    # Ideal Load_CV: 40, was 39,38
-    - { cccv: 1, Load_CC: 4.7, power: 45.0 }     # Ideal Load_CC: 5, was 4.9,4.75
-    - { cccv: 2, Load_CC: 2.3, power: 45.0 }     # Ideal Load_CC: 2.5, was 2.4
-    - { cccv: 3, Load_CC: 1.85, power: 45.0 }     # Ideal Load_CC: 2, was 1.9
-    - { cccv: 4, Load_CC: 1.35, power: 45.0 }     # Ideal Load_CC: 1.5, was 1.4
-    - { cccv: 255}
+    - { toggle: 1, cccv: 0, Load_CV: 37.0, power: 45.0 }    # Ideal Load_CV: 40, was 39,38
+    - { toggle: 1, cccv: 1, Load_CC: 4.7, power: 45.0 }     # Ideal Load_CC: 5, was 4.9,4.75
+    - { toggle: 1, cccv: 2, Load_CC: 2.3, power: 45.0 }     # Ideal Load_CC: 2.5, was 2.4
+    - { toggle: 1, cccv: 3, Load_CC: 1.85, power: 45.0 }     # Ideal Load_CC: 2, was 1.9
+    - { toggle: 1, cccv: 4, Load_CC: 1.35, power: 45.0 }     # Ideal Load_CC: 1.5, was 1.4
+    - { toggle: 1, cccv: 255}
 
 pdline: 1
 

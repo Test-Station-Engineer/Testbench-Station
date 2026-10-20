@@ -30,26 +30,42 @@ def prompt(title_text = "Title Header", message_text = "Message Body"):
     root.destroy()
     return result
 
-def abort_retry_ignore_prompt(title: str = "Abort, Retry, Ignore", message: str = "Message Body") -> str:
+def abort_retry_ignore_prompt(
+    title: str = "Abort, Retry, Ignore",
+    message: str = "Message Body"
+) -> str | None:
+
     root = tk.Tk()
+    root.withdraw() # Make the root window invisible
 
-    # Make the root window invisible
-    root.withdraw()
+    try:
+        # Force it to be the topmost window
+        root.attributes('-topmost', True)
+        # root.lift()
+        # root.focus_force()
 
-    # Force it to be the topmost window
-    root.attributes('-topmost', True)
-    root.lift()
-    root.focus_force()
+        # Try to activate the application after Tk processes events.
+        # Added this root.after(0, xyz) recently, see if this fixes persistent window on Linux
+        root.after(0, root.lift)
+        root.after(0, root.focus_force)
 
-    s = messagebox._show(title, message, messagebox.QUESTION, messagebox.ABORTRETRYIGNORE)
-    s = str(s)
-    if s == messagebox.ABORT: result = "abort"
-    elif s == messagebox.RETRY: result = "retry"
-    elif s == messagebox.IGNORE: result = "ignore"
-    else: 
-        print("Result is unexpected value:", s)
-        result = None
-    return result
+        response = messagebox._show(
+            title=title, 
+            message=message, 
+            icon=messagebox.QUESTION, 
+            type=messagebox.ABORTRETRYIGNORE,
+            parent=root) # Added this parent=root recently, see if this fixes persistent window on Linux
+        response = str(response).lower()
+        if response == messagebox.ABORT: result = "abort"
+        elif response == messagebox.RETRY: result = "retry"
+        elif response == messagebox.IGNORE: result = "ignore"
+        else: 
+            print("Result is unexpected value:", repr(response))
+            return None
+        return result
+
+    finally:
+        root.destroy()
 
 def multi_selection_prompt(
     title: str,

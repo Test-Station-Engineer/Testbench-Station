@@ -8,6 +8,7 @@ import argparse
 import serial
 from serial.tools import list_ports
 
+import readline # Exclusively for Linux cmd line history atm
 
 class SerialTcpMonitor:
     def __init__(

@@ -22,7 +22,7 @@ class TestProcedure(ABC):
     # TODO Implement a runner that checks for the specific procedure tests in the YAML file
     def check_yaml_for_specific_procedure_tests(self) -> bool: pass
 
-    def before_load_sequence(self, ctx, test_loads): pass
+    def before_load_sequence(self, ctx, test_loads: dict): pass
     def set_relays(self,channel): controller.setRelays(channel)
     def before_load_relays(self, ctx, test_load: dict): pass
     def before_load_output_on(self, ctx, test_load: dict, step): pass

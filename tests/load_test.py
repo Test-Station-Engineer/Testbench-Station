@@ -128,6 +128,15 @@ def parse_single_load_test_settings(ctx: TestContext, test_load: dict) -> Single
         measure_every_seconds = (test_load.get('measure_every_seconds') or general.measure_every_seconds or 0.25),
         turn_load_off_after = test_load.get('turn_load_off_after', general.turn_load_off_after)
     )
+
+# def open_circuit_voltage_check(
+#     voltage_thresh: float = None,
+#     hold_time_seconds: float = 5.0,
+#     measure_every_seconds: float = 0.25,
+#     relay: int = 1
+# ) -> LoadTestResult:
+#     pass
+
 def moving_power_check(
     min_power_thresh: float = None,
     max_power_thresh: float = None,

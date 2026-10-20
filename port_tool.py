@@ -2,6 +2,8 @@ import pyvisa
 from serial import Serial
 from serial.tools import list_ports
 
+from sys import platform
+
 from config import config
 
 port_debug = False
@@ -75,25 +77,42 @@ def _open_visa(candidate):
     USB VID/PID are used to filter candidate serial interfaces before
     opening them with VISA. Once a likely resource is found, *IDN? is
     used to identify the actual instrument.
+
+    Linux:
+        Restrict discovery to USB VISA resources.
+
+    Windows:
+        Enumerate all VISA resources because USB-serial devices appear
+        as ASRLx::INSTR.
     """
 
-    resources = rm.list_resources("?*USB?*INSTR")
+    if platform.startswith("linux"):
+        # print(platform)
+        resources = rm.list_resources("?*USB?*INSTR")
+    else:
+        resources = rm.list_resources()
 
     if not resources:
-        print("  No USB VISA resources found.")
+        print("  No VISA resources found.")
         return None
 
+    if port_debug:
+        print(f"  VISA resources: {resources}")
+
     for resource in resources:
+        print("Resource:",resource)
+        if port_debug:
+            print(f"  Checking VISA resource: {resource}")
 
-        if port_debug: print(f"  Checking VISA resource: {resource}")
+        # --------------------------------------------------------------
+        # Windows/Linux serial-over-VISA
+        # --------------------------------------------------------------
 
-        # If this is an ASRL resource, identify the underlying USB device
-        # before opening it.
         if resource.startswith("ASRL"):
+
             if candidate.get("type") == "usbtmc":
                 continue
 
-            # Stage 1: safely inspect USB information using pyserial.
             port = _get_serial_port_from_visa_resource(resource)
 
             if port is None:
@@ -102,13 +121,30 @@ def _open_visa(candidate):
             if not _usb_candidate_matches(candidate, port):
                 continue
 
-        # Stage 2: actually open the candidate VISA resource
+        # --------------------------------------------------------------
+        # Native USB VISA resource
+        # --------------------------------------------------------------
+
+        elif resource.upper().startswith("USB"):
+            if not _visa_usb_resource_matches(candidate, resource):
+                continue
+
+        # --------------------------------------------------------------
+        # Anything else
+        # --------------------------------------------------------------
+
+        else:
+            continue
+
+        # --------------------------------------------------------------
+        # Open and identify
+        # --------------------------------------------------------------
+
         inst = None
 
         try:
             inst = rm.open_resource(resource)
 
-            # Short timeout while probing.
             inst.timeout = 1000
 
             idn = inst.query("*IDN?").strip()
@@ -117,7 +153,6 @@ def _open_visa(candidate):
 
             if _visa_candidate_matches(candidate, idn):
 
-                # Restore normal operating timeout.
                 inst.timeout = 10000
 
                 print(f"    MATCH: {resource}")
@@ -140,6 +175,64 @@ def _open_visa(candidate):
                     pass
 
     return None
+
+def _visa_usb_resource_matches(candidate, resource):
+    """
+    Match VID/PID/serial from a VISA USB resource.
+
+    Typical VISA resource:
+
+        USB0::0x0403::0x6001::B0017WHY::INSTR
+    """
+
+    parts = resource.split("::")
+
+    if len(parts) < 4:
+        return False
+
+    try:
+        actual_vid = int(parts[1], 0)
+        actual_pid = int(parts[2], 0)
+    except ValueError:
+        return False
+
+    actual_serial = parts[3]
+
+    expected_vid = candidate.get("vid")
+    expected_pid = candidate.get("pid")
+    expected_serial = candidate.get("serial")
+
+    if expected_vid is not None:
+        if not _numeric_values_match(expected_vid, actual_vid):
+            if port_debug:
+                print(
+                    f"    USB mismatch: vid "
+                    f"(expected {expected_vid!r}, "
+                    f"found {actual_vid!r})"
+                )
+            return False
+
+    if expected_pid is not None:
+        if not _numeric_values_match(expected_pid, actual_pid):
+            if port_debug:
+                print(
+                    f"    USB mismatch: pid "
+                    f"(expected {expected_pid!r}, "
+                    f"found {actual_pid!r})"
+                )
+            return False
+
+    if expected_serial is not None:
+        if str(expected_serial).lower() != actual_serial.lower():
+            if port_debug:
+                print(
+                    f"    USB mismatch: serial "
+                    f"(expected {expected_serial!r}, "
+                    f"found {actual_serial!r})"
+                )
+            return False
+
+    return True
 
 def _visa_candidate_matches(candidate, idn):
     """
@@ -259,28 +352,43 @@ def _open_serial(candidate, baudrate: int = 115200, timeout = 1.0):
     return None
 
 def _get_serial_port_from_visa_resource(resource):
-    """
-    Find the pyserial port corresponding to a VISA ASRL resource.
+    """Find the pyserial port corresponding to a VISA ASRL resource.
+
+    Examples:
+
+        Linux:
+            ASRL/dev/ttyUSB3::INSTR
+            -> /dev/ttyUSB3
+
+        Windows:
+            ASRL4::INSTR
+            -> COM4
     """
 
-    # Example:
-    #
-    # ASRL/dev/ttyUSB3::INSTR
-    #
-    # -> /dev/ttyUSB3
-
-    if not resource.startswith("ASRL"):
+    if not resource.upper().startswith("ASRL"):
         return None
 
     port_name = resource[4:]
 
     if "::" in port_name:
-        port_name = port_name.split("::")[0]
+        # print("Port Name:",port_name)
+        port_name = port_name.split("::", 1)[0]
+        # print(port_name)
+        # port_name = port_name.split("::")[0]
 
     for port in list_ports.comports():
 
-        if port.device == port_name:
+        if port.device.lower() == port_name.lower():
+            # print("Port:", port)
             return port
+
+    # Windows VISA ASRL4 -> PySerial COM4
+    if port_name.isdigit():
+        wanted = f"COM{port_name}"
+
+        for port in list_ports.comports():
+            if port.device.upper() == wanted.upper():
+                return port
 
     return None
 
@@ -292,32 +400,34 @@ def _usb_candidate_matches(candidate, port):
     Any USB fields specified in the candidate must match.
     """
 
-    expected_values = {
+    actual_values = {
         "usb_vid": port.vid,
         "usb_pid": port.pid,
         "usb_serial": port.serial_number,
+        "manufacturer": port.manufacturer,
+        "product": port.product,
     }
 
-    for field, actual in expected_values.items():
+    # for field in ("vid", "pid", "serial", "manufacturer", "product"):
+    for field in ("usb_serial", "usb_vid", "usb_pid"):
 
         expected = candidate.get(field)
-
+        print("CANDIDATE:",expected)
         # Not specified in YAML -> ignore it
         if expected is None:
             continue
 
-        if field in ("usb_vid", "usb_pid"):
-            matches = _numeric_values_match(expected, actual)
-        else:
-            matches = str(expected).lower() == str(actual).lower()
+        actual = actual_values[field]
 
-        if not matches:
+        if not _values_match(field, expected, actual):
             if port_debug:
                 print(
                     f"    USB mismatch: {field} "
                     f"(expected {expected!r}, found {actual!r})"
                 )
             return False
+        if port_debug:
+            print(f"USB CANDIDATE PROPERTY MATCH: {field}")
 
     return True
 
@@ -453,3 +563,4 @@ if __name__ == "__main__":
 
     except RuntimeError as e:
         print(f"\nERROR: {e}")
+ 

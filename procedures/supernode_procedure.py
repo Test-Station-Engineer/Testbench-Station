@@ -29,6 +29,7 @@ class SuperNodeProcedure(TestProcedure):
     ######################################################################
     @override
     def before_load_sequence(self, ctx: TestContext, test_loads: dict): # TODO Change test_loads input var name to test_loads_settings to avoid confusion
+        # coap_client.set_lldp(ctx.ip,False)
         dim_setting: int = test_loads.get('dim', 100)
         ctx.dim_expected = dim_setting
         # dim: int = getattr(test_load, "get", lambda *_: 100)('dim', 100)

@@ -1,10 +1,10 @@
-cxode_version: "2out v Apr  6 2026 14:58:40"
+code_version: "2out v Aug 25 2026 11:40:45"
 
 # Trigger 1 Settings
 trigger_1_test: 1
 chance_to_test_trigger_1: 100.0
 number_of_trigger_1_attempts: 1.0
-seconds_to_wait_for_restart: 8.0
+seconds_to_wait_for_restart: 12.0
 
 # Update Database
 update_db: 1
