@@ -2,24 +2,21 @@ subnet: "192.168.1.255"       # Searches through this set of IPs (e.g. 192.168.2
 # subnet: "192.168.2.255"
 
 scan_timeout: 0.15             # How much time to wait for individual IP address to respond (default = 0.1)
-scan_start: 211              # Host ID of IP to start scan from e.g. 11 will start scan at 192.168.2.11 (default = 251)
+scan_start: 2              # Host ID of IP to start scan from e.g. 11 will start scan at 192.168.2.11 (default = 251)
 scan_end: 255               # Host ID of IP to stop scan at. (default = 255)
 
 prompt_continue_key: 'DOWN'   # Need to set this for each send_test_prompt that uses it
 prompt_end_test_key: 'esc'    # Does nothing currently, need to implement
 
-BATCH: "ATLANTIC_CLUB_SUPERNODE.csv"       # Needs to be set for the specific order, will need a better solution in the future
+BATCH: "default_batch_name.csv"       # Needs to be set for the specific order, will need a better solution in the future
 
 instruments:
   load:
     candidates:
-      # Ubuntu station (USBTMC)
-      - type: usbtmc
-        serial: SDL13GCC7R0069
-        # vid: 0xF4EC
-        # pid: 0x1621
-        # manufacturer: Siglent
-        # product: SDL1020X-E
+      - type: visa
+        usb_vid: 0x067B
+        usb_pid: 0x23A3
+        # manufacturer: ARRAY
 
       - type: visa
         manufacturer: ARRAY
@@ -28,27 +25,20 @@ instruments:
         usb_vid: 0x0403
         usb_pid: 0x6001
 
-      - type: visa
-        manufacturer: ARRAY
-        model: 3721A
-        serial: B0017WHY
-        vid: 0x0403
-        pid: 0x6001
-
-      # Windows station (USB Serial)
-      - type: visa
-        serial: EHABB13BN11
-
-      # Fallback if serial changes
-      - type: visa
-        vid: 0x067B
-        pid: 0x23A3
-        manufacturer: FTDI
+      # Bad Load Machine
+      - type: usbtmc
+        serial: SDL13GCC7R0069
+        # vid: 0xF4EC
+        # pid: 0x1621
+        # manufacturer: Siglent
+        # product: SDL1020X-E
 
   rs485_module:
     candidates:
       - serial: BG01XD6U
-        baudrate: 115200
+    candidates:
+      - serial: BG01EHULA
+
 
   microcontroller: # arduino nano - ch341-uart converter
     candidates:
