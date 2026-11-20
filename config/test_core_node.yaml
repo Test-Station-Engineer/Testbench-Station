@@ -8,23 +8,26 @@ gateway_version: '2.16.1'
 driver_version: '2.9.4'
 
 mini_cp: 900
-loxads:
+loads:
   - toggle: 1
   - mini_cv: 12000
     mini_cc: 3000
     dim: 100
     Load_CR: 3.2
     power: 18.0
+
   - mini_cv: 24000
     mini_cc: 3000
     dim: 100
     Load_CR: 8.4 # Was / Should be 8, not 8.4. Doing this to speed it up.
     power: 58.0
+
   - mini_cv: 40000
     mini_cc: 2000
     dim: 100
     Load_CR: 22
     power: 65.0
+
   - mini_cv: 48000    # Mini Node Voltage Setting
     mini_cc: 2000     # Mini Node Current Setting
     dim: 100

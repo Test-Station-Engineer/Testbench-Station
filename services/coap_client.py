@@ -8,7 +8,7 @@ import time
 
 # resource = '/actuators/actuator1''
 # data = {'maxw':'713'}
-async def asyncPut(ip_address,resource,data,timeout:float = 5):
+async def asyncPut(ip_address, resource, data, timeout: float = 5):
     # print(type(ip_address))         # TODO REMOVE LATER, ADDED FOR DEBUGGING
     # print("IP addr is",ip_address)  # TODO REMOVE LATER, ADDED FOR DEBUGGING
     # print(type(resource))           # TODO REMOVE LATER, ADDED FOR DEBUGGING
@@ -246,9 +246,28 @@ def setEventHL(ip_address,channel,eventhl):
     if channel == 0: putValue(ip_address,'/network','cmd','set_input_type eventhl'+str(eventhl))
     else: putValue(ip_address,'/sensors/input'+str(channel),'eventhl',str(eventhl))
 
+# Old secure_setting function
+# def secure_setting(ip_address: str,resource: str,key: str,value,verbose: bool = False, timeout: int = 5) -> bool:
+#     for i in range(1,10):    
+#         #print(power)
+#         putValue(ip_address,resource,key,value,timeout)
+#         if 'cccv' in key.lower(): time.sleep(8.0)               # Longer delay for CCCV changes, as they take longer to apply TODO FIND MORE SCALABLE SOLUTION
+#         get_setting = getValue(ip_address,resource,key)
+#         if value == get_setting:
+#             if verbose:
+#                 if i > 1: print(f"{resource,key} assigned as {get_setting}. It took {i} tries.")
+#                 else: print(f"{resource,key} assigned as {get_setting}.")
+#             elif i > 1: print(f"\033[91mWARNING: ASSIGNING {resource,key} AS {get_setting} TOOK {i} TRIES.\033[0m")
+#             return True
+#         time.sleep(0.25)
+#     if value is not get_setting:
+#         print(f"\033[93mFailed to set {key} of resource {resource} to {value} after {i} retries.\033[0m")
+#         return False
+
 def secure_setting(ip_address: str,resource: str,key: str,value,verbose: bool = False, timeout: int = 5) -> bool:
-    for i in range(1,10):    
-        #print(power)
+    tries = 9
+    get_setting = None
+    for i in range(1, tries + 1):
         putValue(ip_address,resource,key,value,timeout)
         if 'cccv' in key.lower(): time.sleep(8.0)               # Longer delay for CCCV changes, as they take longer to apply TODO FIND MORE SCALABLE SOLUTION
         get_setting = getValue(ip_address,resource,key)
@@ -259,9 +278,9 @@ def secure_setting(ip_address: str,resource: str,key: str,value,verbose: bool = 
             elif i > 1: print(f"\033[91mWARNING: ASSIGNING {resource,key} AS {get_setting} TOOK {i} TRIES.\033[0m")
             return True
         time.sleep(0.25)
-    if value is not get_setting:
-        print(f"\033[93mFailed to set {key} of resource {resource} to {value} after {i} retries.\033[0m")
-        return False
+    print(f"\033[93mFailed to set {key} of resource {resource} to {value} after {tries} tries (last read: {get_setting!r}).\033[0m")
+    return False
+
 
 def set_lldp(ip_address,state: bool): 
     secure_setting(ip_address,'/network','lldp_enable',str(state).lower())

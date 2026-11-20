@@ -1,4 +1,4 @@
-code_version: "2out v Aug  3 2026 13:00:38" # Check to see if code version matches up with this one.
+code_version: "2out v Sep  1 2026 12:07:46" # Check to see if code version matches up with this one.
 
 # Trigger 1 Settings
 trigger_1_test: 1               # Will test to see if the node handles being prompted to restart

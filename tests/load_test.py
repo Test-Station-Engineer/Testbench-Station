@@ -385,7 +385,7 @@ def test_loads(ctx: TestContext, test_loads: dict) -> bool:
     test_pass = True
 
     ctx.general_load_settings = parse_general_load_test_settings(ctx=ctx, test_loads=test_loads)
-
+    
     # Gets the load list from test loads dictionary and validates it
     test_loads_list = test_loads.get('test_steps', [])
     if not isinstance(test_loads_list, list):
@@ -394,8 +394,9 @@ def test_loads(ctx: TestContext, test_loads: dict) -> bool:
     if not test_loads_list:
         print(f"No loads found in test_loads. Please ensure 'loads' key contains a list of load configurations.")
         return False
-    
-    if Device.procedure().custom_loads_test(ctx=ctx, test_loads=test_loads_list): 
+
+    # If this is set in the procedure file, it can be used to override the default load testing behavior. This is useful for devices that have too unique load testing requirements.
+    if Device.procedure().custom_loads_test(ctx=ctx, test_loads=test_loads_list):
         return True
 
     # # TODO DELETE LATER

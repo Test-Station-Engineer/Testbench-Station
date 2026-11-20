@@ -52,7 +52,7 @@ def get_ip(ctx: TestContext) -> bool:
             print("Failed to derive subnet from host IP:", e)
             coap_client_scan.subnet = '192.168.2.255'
 
-    # Scan tuning  
+    # Scan tuning # NOTE Ew
     ctx.scan_timeout = gs.get('scan_timeout', ctx.scan_timeout)
     ctx.scan_range_start = gs.get('scan_start', ctx.scan_range_start)
     ctx.scan_range_end = gs.get('scan_end', ctx.scan_range_end)

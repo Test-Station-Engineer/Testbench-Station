@@ -159,6 +159,88 @@ def getLine():
     readLines(1,200)
     return readLine(False)
 
+def setRelays(channel: int | str):
+    flushLines()
+    if 'output' in str(channel):
+        msg = 'set_relays '+str(channel)+'\r\n'
+    else:
+        msg = f'set_relays output{str(channel)}\r\n' # NOTE Recently added, not tested
+    ser.write(msg.encode('utf-8'))
+    readLines(1,2000)
+
+def setMux(channel):
+    flushLines()
+    msg = 'set_mux '+str(channel)+'\r\n'
+    ser.write(msg.encode('utf-8'))
+    readLines(1,200)
+
+def getMux():
+    flushLines()
+    msg = 'get_mux_channel\r\n'
+    ser.write(msg.encode('utf-8'))
+    readLines(3,200) # Need to check to see if this is right - Drew
+    for i in range(0,3):
+        line = readLine(False)
+        #print(line)
+        if line.find('Mux channel') > -1 and len(line) > 21:
+            #print("Found")
+            mux_channel = line[21:].strip()
+            mux_channel=int(mux_channel)
+            return mux_channel
+        
+def setPush4BTNOn():
+    flushLines()
+    msg = 'set_push_4BTN_On\r\n'
+    ser.write(msg.encode('utf-8'))
+    readLines(1,2000)
+
+def setPush4BTNOff():
+    flushLines()
+    msg = 'set_push_4BTN_Off\r\n'
+    ser.write(msg.encode('utf-8'))
+    readLines(1,2000)
+
+def setAux(channel,enable,response):
+    flushLines()
+    if enable:
+        msg = 'set_aux'+str(channel)+' true\r\n'
+    else:
+        msg = 'set_aux'+str(channel)+' false\r\n'
+    ser.write(msg.encode('utf-8'))
+    readLines(3,50)
+    line = readLine(False)
+    for i in range(0,3): 
+        if line.find(response) > -1:
+            return line
+        line = readLine(False)
+    return line
+
+
+# New methods for controller v3
+def setContOutput(enable: bool):
+    """True = continuous output test (ENABLE_CONT + ADDR2 HIGH).
+    False = PWM test (both LOW); then pick a channel with setPWMChannel()."""
+    flushLines()
+    msg = f"set_cont_output {'true' if enable else 'false'}\r\n"
+    ser.write(msg.encode('utf-8'))
+    readLines(1,200)
+
+def setPWMChannel(channel: int):
+    """Core Node PWM1..PWM4 -> channel 0..3 (sets ADDR1:ADDR0, leaves ADDR2 alone)."""
+    if channel not in (0,1,2,3):
+        raise ValueError(f"PWM channel must be 0-3, got {channel}")
+    flushLines()
+    msg = f"set_pwm {channel}\r\n"
+    ser.write(msg.encode('utf-8'))
+    readLines(1,200)
+
+def setEnableIn(enable: bool):
+    flushLines()
+    msg = f"set_enable_in {'true' if enable else 'false'}\r\n"
+    ser.write(msg.encode('utf-8'))
+    readLines(1,200)
+
+'''
 def writeConsole(msg):
     flushLines()
     console_msg = 'write_console '
@@ -168,6 +250,14 @@ def writeConsole(msg):
 def writeCMD(cmd):
     msg = cmd + '\r\n'
     writeConsole(msg.encode('utf-8'))
+
+def setLoadLED(enable):
+    if enable:
+        msg = 'set_load_led on\r\n'
+    else:
+        msg = 'set_load_led off\r\n'
+    ser.write(msg.encode('utf-8'))
+    readLines(2,2000)
 
 def writeConsoleReadCOM(msg):
     flushLines()
@@ -188,14 +278,6 @@ def writeCOMReadConsole(msg):
     readLine(False)
     readLine(False)
     return readLine(False)
-
-def setLoadLED(enable):
-    if enable:
-        msg = 'set_load_led on\r\n'
-    else:
-        msg = 'set_load_led off\r\n'
-    ser.write(msg.encode('utf-8'))
-    readLines(2,2000)
 
 # rev6
 def detectBoardVersion():
@@ -273,7 +355,6 @@ def getGoldenVersion():
             return golden_version
     return golden_version
 
-# Node SN : 12345
 def getSN():
     global serial_number
     flushLines()
@@ -381,11 +462,6 @@ def setCCCV(channel,stage):
     writeConsole(msg.encode('utf-8'))
     readLines(8,2000)
 
-# write_console get_max_watt
-# get_max_watt
-#
-# Maxw1: 713
-# Maxw2: 713
 def getMaxWatt(channel):
     global maxwatt1, maxwatt2
     flushLines()
@@ -447,76 +523,6 @@ def setDimRetry(channel,dim,retries):
             return True
     return False
 
-def setRelays(channel: int | str):
-    flushLines()
-    if 'output' in str(channel):
-        msg = 'set_relays '+str(channel)+'\r\n'
-    else:
-        msg = f'set_relays output{str(channel)}\r\n' # NOTE Recently added, not tested
-    ser.write(msg.encode('utf-8'))
-    readLines(1,2000)
-
-def setMux(channel):
-    flushLines()
-    msg = 'set_mux '+str(channel)+'\r\n'
-    ser.write(msg.encode('utf-8'))
-    readLines(1,200)
-
-def getMux():
-    flushLines()
-    msg = 'get_mux_channel\r\n'
-    ser.write(msg.encode('utf-8'))
-    readLines(3,200) # Need to check to see if this is right - Drew
-    for i in range(0,3):
-        line = readLine(False)
-        #print(line)
-        if line.find('Mux channel') > -1 and len(line) > 21:
-            #print("Found")
-            mux_channel = line[21:].strip()
-            mux_channel=int(mux_channel)
-            return mux_channel
-        
-def setPush4BTNOn():
-    flushLines()
-    msg = 'set_push_4BTN_On\r\n'
-    ser.write(msg.encode('utf-8'))
-    readLines(1,2000)
-
-def setPush4BTNOff():
-    flushLines()
-    msg = 'set_push_4BTN_Off\r\n'
-    ser.write(msg.encode('utf-8'))
-    readLines(1,2000)
-
-def getV010V():
-    flushLines()
-    msg = 'get_0-10V\r\n'
-    ser.write(msg.encode('utf-8'))
-    readLines(3,200)
-    readLine(False)
-    line = readLine(False)
-    val = 0
-    try:
-        val = float(line)
-    except:
-        a = 1
-    return val
-
-def setAux(channel,enable,response):
-    flushLines()
-    if enable:
-        msg = 'set_aux'+str(channel)+' true\r\n'
-    else:
-        msg = 'set_aux'+str(channel)+' false\r\n'
-    ser.write(msg.encode('utf-8'))
-    readLines(3,50)
-    line = readLine(False)
-    for i in range(0,3): 
-        if line.find(response) > -1:
-            return line
-        line = readLine(False)
-    return line
-
 def setPWMFrequency(frequency):
     flushLines()
     msg = 'set_pwmfreq '+str(frequency)+'\r\n'
@@ -540,8 +546,24 @@ def getPWMFrequency():
                 a = 1
     return pwm_frequency
 
+def getV010V():
+    flushLines()
+    msg = 'get_0-10V\r\n'
+    ser.write(msg.encode('utf-8'))
+    readLines(3,200)
+    readLine(False)
+    line = readLine(False)
+    val = 0
+    try:
+        val = float(line)
+    except:
+        a = 1
+    return val
+
 def resetConsole():
     flushLines()
     writeConsole(b' ') # reset console
     readLines(3,200)
     flushLines()
+
+'''
